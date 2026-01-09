@@ -140,27 +140,41 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
 * Docker Desktop (WSL2 enabled)
 * Python 3.10+
 * Node.js & npm
-### Step 1: Start Backend
+## 🏁 Getting Started
 
+### 1️⃣ Start the Backend (Docker)
+First, spin up the microservices using Docker Compose.
+
+```powershell
 cd Sentinel_Level8_Enterprise
 docker-compose up --build
+```
+Wait until you see [SIEM] Listening... in the logs.
 
-### Step 2: Start Frontend
+### 2️⃣ Launch the Dashboard
+Start the React Frontend to visualize the attacks.
 
+```PowerShell
 cd c2_core/UI
 npm install
 npm run dev
-Access: http://localhost:8081
+Open: http://localhost:8081
+```
+### 3️⃣ Run the Agent
+Run the Python agent on the target machine (Windows).
 
-### Step 3: Run Agent
-
+```PowerShell
 cd c2_core/agent
 python sentinel_agent.py
+```
+### 4️⃣ Simulate an Attack
+Inside the Agent terminal, type the simulation command:
 
+```PowerShell
 simulate_attack
-Dashboard turns RED and Firewall blocks instantly 🔥
-
-### 📜 License
+Result: The Dashboard turns RED and the Firewall blocks the threat instantly! 🔥
+```
+## 📜 License
 MIT License — see LICENSE file.
 
 <p align="center"> <b>Built with ❤️ by Monish</b>
