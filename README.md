@@ -1,6 +1,6 @@
 # 🛡️ Sentinel Level-8 Enterprise SOC
 
-![Uploading screencapture-localhost-8081-dashboard-2026-01-09-11_35_13.png…]()
+<img width="1366" height="1193" alt="screencapture-localhost-8081-dashboard-2026-01-09-11_35_13" src="https://github.com/user-attachments/assets/a741366c-514a-417d-b7ce-5a1893818e9f" />
 
 ![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
@@ -33,7 +33,7 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
 
 <img width="4093" height="4185" alt="Untitled diagram-2026-01-09-060248" src="https://github.com/user-attachments/assets/0d6f54a4-648a-40ba-9b28-1e9844b27fdc" />
 
-🧠 Core Components Breakdown
+##🧠 Core Components Breakdown
 🧠 C2 Core (The Brain)
 Role: Central orchestrator & command gateway
 
@@ -47,10 +47,10 @@ Executes SOAR decisions
 
 Controls Firewall via Windows Filtering Platform (WFP)
 
-⚡ Redis Event Bus (The Nervous System)
+##⚡ Redis Event Bus (The Nervous System)
 Role: High-speed asynchronous communication layer
 
-Channels:
+##Channels:
 
 soc_logs – Raw telemetry & events
 
@@ -58,10 +58,10 @@ soc_alerts – High-risk alerts
 
 c2_commands – Firewall & isolation actions
 
-🔮 AI Brain (The Analyst)
+##🔮 AI Brain (The Analyst)
 Role: Real-time behavioral threat analysis
 
-Functions:
+##Functions:
 
 Detects ransomware, credential access, lateral movement
 
@@ -69,10 +69,10 @@ Generates probabilistic confidence scores (0–100%)
 
 Operates on live streaming telemetry
 
-🛡️ SOAR Engine (The Judge)
+##🛡️ SOAR Engine (The Judge)
 Role: Autonomous decision engine
 
-Decision Logic:
+##Decision Logic:
 
 text
 Copy code
@@ -80,7 +80,7 @@ IF threat_confidence > 90%
 THEN block_ip OR isolate_host
 Executes containment without human intervention
 
-🔒 SIEM Vault (The Auditor)
+##🔒 SIEM Vault (The Auditor)
 Role: Immutable forensic log storage
 
 Security Features:
@@ -89,10 +89,10 @@ SHA-256 Merkle Chain Hashing
 
 Tamper-evident, audit-ready logs
 
-🖥️ Frontend Dashboard (The Command Center)
+##🖥️ Frontend Dashboard (The Command Center)
 Tech: React 18, Vite, TypeScript, Tailwind CSS, ShadCN UI
 
-Features:
+##Features:
 
 Real-time alerts
 
@@ -102,7 +102,7 @@ Risk scores & system health
 
 Single Pane of Glass SOC view
 
-⚡ Life of an Attack (End-to-End Flow)
+##⚡ Life of an Attack (End-to-End Flow)
 Scenario: Ransomware attempts rapid file encryption.
 
 Detection – Agent detects abnormal file write frequency
@@ -121,29 +121,29 @@ Execution – C2 enforces rule via WFP
 
 Visualization – Dashboard flashes RED ALERT 🚨
 
-🚀 Key Technical Features
-🧠 Autonomous Intelligence
+##🚀 Key Technical Features
+##🧠 Autonomous Intelligence
 AI-driven detection with confidence scoring
 
 Zero-delay SOAR execution
 
 No human dependency for containment
 
-🛡️ Resilience & Self-Healing
+##🛡️ Resilience & Self-Healing
 Exponential Backoff (2s → 4s → 8s)
 
 Startup reset using Redis flushall()
 
 Live WebSocket UI sync (no polling)
 
-🔒 Security & Integrity
+##🔒 Security & Integrity
 AES-256 encrypted communication
 
 SHA-256 Merkle-hashed logs
 
 Hybrid Linux Backend + Native Windows Agent
 
-🛠️ Technology Stack
+##🛠️ Technology Stack
 Layer	Technology
 Backend	Python 3.10, FastAPI, AsyncIO
 Infrastructure	Docker, Docker Compose
@@ -152,7 +152,7 @@ Frontend	React 18, Vite, Tailwind, ShadCN UI
 Agent	Native Python, psutil, winreg
 Security	AES-256, SHA-256, Windows Filtering Platform
 
-🧬 Microservices
+##🧬 Microservices
 c2_core – Command gateway & firewall executor
 
 ai_brain – Threat prediction engine
@@ -161,7 +161,7 @@ soar_engine – Automated response engine
 
 siem_vault – Immutable forensic storage
 
-🏁 Getting Started
+##🏁 Getting Started
 Prerequisites
 Docker Desktop (WSL2 enabled)
 
@@ -193,7 +193,7 @@ Copy code
 simulate_attack
 Dashboard turns RED and Firewall blocks instantly 🔥
 
-📜 License
+##📜 License
 MIT License — see LICENSE file.
 
 <p align="center"> <b>Built with ❤️ by Monish</b><br> <i>Cybersecurity Analyst & Full-Stack Developer</i> </p> ```
