@@ -1,4 +1,4 @@
-# 🛡️ Sentinel Level-8 Enterprise SOC
+# 🛡️ Sentinel_SOC_level8
 
 <img width="1366" height="1193" alt="Dashboard Screenshot" src="https://github.com/user-attachments/assets/a741366c-514a-417d-b7ce-5a1893818e9f" />
 
@@ -145,14 +145,14 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
 cd Sentinel_Level8_Enterprise
 docker-compose up --build
 
-###Step 2: Start Frontend
+### Step 2: Start Frontend
 
 cd c2_core/UI
 npm install
 npm run dev
 Access: http://localhost:8081
 
-###Step 3: Run Agent
+### Step 3: Run Agent
 
 cd c2_core/agent
 python sentinel_agent.py
@@ -160,7 +160,7 @@ python sentinel_agent.py
 simulate_attack
 Dashboard turns RED and Firewall blocks instantly 🔥
 
-###📜 License
+### 📜 License
 MIT License — see LICENSE file.
 
 <p align="center"> <b>Built with ❤️ by Monish</b>
