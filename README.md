@@ -33,9 +33,9 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
 
 <img width="100%" alt="System Architecture" src="https://github.com/user-attachments/assets/0d6f54a4-648a-40ba-9b28-1e9844b27fdc" />
 
-### 🧠 Core Components Breakdown
+## 🧠 Core Components Breakdown
 
-#### 🧠 C2 Core (The Brain)
+### 🧠 C2 Core (The Brain)
 * **Role:** Central orchestrator & command gateway
 * **Tech:** Python 3.10, FastAPI, WebSockets
 * **Responsibilities:**
@@ -43,21 +43,21 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
     * Executes SOAR decisions
     * Controls Firewall via Windows Filtering Platform (WFP)
 
-#### ⚡ Redis Event Bus (The Nervous System)
+### ⚡ Redis Event Bus (The Nervous System)
 * **Role:** High-speed asynchronous communication layer
 * **Channels:**
     * `soc_logs` – Raw telemetry & events
     * `soc_alerts` – High-risk alerts
     * `c2_commands` – Firewall & isolation actions
 
-#### 🔮 AI Brain (The Analyst)
+### 🔮 AI Brain (The Analyst)
 * **Role:** Real-time behavioral threat analysis
 * **Functions:**
     * Detects ransomware, credential access, lateral movement
     * Generates probabilistic confidence scores (0–100%)
     * Operates on live streaming telemetry
 
-#### 🛡️ SOAR Engine (The Judge)
+### 🛡️ SOAR Engine (The Judge)
 * **Role:** Autonomous decision engine
 * **Decision Logic:**
     ```text
@@ -66,13 +66,13 @@ Sentinel follows a **containerized, fault-tolerant microservices architecture** 
     ```
     *Executes containment without human intervention.*
 
-#### 🔒 SIEM Vault (The Auditor)
+### 🔒 SIEM Vault (The Auditor)
 * **Role:** Immutable forensic log storage
 * **Security Features:**
     * SHA-256 Merkle Chain Hashing
     * Tamper-evident, audit-ready logs
 
-#### 🖥️ Frontend Dashboard (The Command Center)
+### 🖥️ Frontend Dashboard (The Command Center)
 * **Tech:** React 18, Vite, TypeScript, Tailwind CSS, ShadCN UI
 * **Features:**
     * Real-time alerts
