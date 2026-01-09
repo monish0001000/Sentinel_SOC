@@ -1,7 +1,6 @@
 # 🛡️ Sentinel Level-8 Enterprise SOC
 
-<img width="1366" height="768" alt="Screenshot (619)" src="https://github.com/user-attachments/assets/a454be14-dba5-458d-81f0-c129f6f5a141" />
-
+![Uploading screencapture-localhost-8081-dashboard-2026-01-09-11_35_13.png…]()
 
 ![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
@@ -32,35 +31,19 @@ Human intervention is optional — the system is designed to **act first, report
 
 Sentinel follows a **containerized, fault-tolerant microservices architecture** orchestrated using Docker.
 
-```mermaid
-graph TD
-    Attacker((Threat Actor)) -->|Malicious Activity| Agent[Sentinel Agent - Windows]
-    Agent -->|Encrypted WebSocket| C2[C2 Core - FastAPI]
-    C2 -->|Publish| Redis[(Redis Event Bus)]
+<img width="4093" height="4185" alt="Untitled diagram-2026-01-09-060248" src="https://github.com/user-attachments/assets/0d6f54a4-648a-40ba-9b28-1e9844b27fdc" />
 
-    subgraph Internal_Services
-        Redis -->|soc_logs| AI[AI Brain]
-        Redis -->|soc_logs| SIEM[SIEM Vault]
-        AI -->|High Confidence Alert| SOAR[SOAR Engine]
-        SOAR -->|c2_commands| Redis
-    end
-
-    Redis -->|Execute Command| C2
-    C2 -->|Firewall Rule| WFP[Windows Filtering Platform]
-    WFP -->|Block / Isolate| Attacker
-
-    Redis -->|Live Events| UI[React SOC Dashboard]
 🧠 Core Components Breakdown
 🧠 C2 Core (The Brain)
 Role: Central orchestrator & command gateway
 
 Tech: Python 3.10, FastAPI, WebSockets
 
-Functionality:
+Responsibilities:
 
 Maintains persistent agent connections
 
-Executes SOAR commands
+Executes SOAR decisions
 
 Controls Firewall via Windows Filtering Platform (WFP)
 
@@ -78,33 +61,33 @@ c2_commands – Firewall & isolation actions
 🔮 AI Brain (The Analyst)
 Role: Real-time behavioral threat analysis
 
-Function:
+Functions:
 
-Detects ransomware, credential theft, lateral movement
+Detects ransomware, credential access, lateral movement
 
-Outputs probabilistic confidence scores (0–100%)
+Generates probabilistic confidence scores (0–100%)
 
 Operates on live streaming telemetry
 
 🛡️ SOAR Engine (The Judge)
 Role: Autonomous decision engine
 
-Logic Example:
+Decision Logic:
 
-matlab
+text
 Copy code
 IF threat_confidence > 90%
 THEN block_ip OR isolate_host
-Executes responses without human approval
+Executes containment without human intervention
 
 🔒 SIEM Vault (The Auditor)
 Role: Immutable forensic log storage
 
-Security:
+Security Features:
 
 SHA-256 Merkle Chain Hashing
 
-Tamper-evident, blockchain-style log integrity
+Tamper-evident, audit-ready logs
 
 🖥️ Frontend Dashboard (The Command Center)
 Tech: React 18, Vite, TypeScript, Tailwind CSS, ShadCN UI
@@ -122,51 +105,43 @@ Single Pane of Glass SOC view
 ⚡ Life of an Attack (End-to-End Flow)
 Scenario: Ransomware attempts rapid file encryption.
 
-Detection
-Sentinel Agent detects abnormal high-frequency file writes.
+Detection – Agent detects abnormal file write frequency
 
-Transmission
-Telemetry sent to C2 Core via WebSocket.
+Transmission – Telemetry sent to C2 via WebSocket
 
-Broadcast
-Event published to Redis soc_logs.
+Broadcast – Event published to Redis soc_logs
 
-Analysis
-AI Brain flags behavior as Ransomware (Confidence: 98%).
+Analysis – AI flags Ransomware (Confidence: 98%)
 
-Decision
-SOAR validates threat > threshold.
+Decision – SOAR validates threat threshold
 
-Action
-block_ip or isolate_host command issued.
+Action – block_ip or isolate_host issued
 
-Execution
-C2 Core enforces rule via WFP Firewall.
+Execution – C2 enforces rule via WFP
 
-Visualization
-SOC Dashboard flashes RED ALERT instantly 🚨
+Visualization – Dashboard flashes RED ALERT 🚨
 
 🚀 Key Technical Features
 🧠 Autonomous Intelligence
-AI-driven detection with probabilistic scoring
+AI-driven detection with confidence scoring
 
 Zero-delay SOAR execution
 
 No human dependency for containment
 
 🛡️ Resilience & Self-Healing
-Exponential Backoff: Agent reconnects (2s → 4s → 8s)
+Exponential Backoff (2s → 4s → 8s)
 
-Startup Reset: Redis flushall() clears stale panic states
+Startup reset using Redis flushall()
 
-Live Sync: WebSocket-based UI updates (no polling)
+Live WebSocket UI sync (no polling)
 
 🔒 Security & Integrity
 AES-256 encrypted communication
 
 SHA-256 Merkle-hashed logs
 
-Hybrid Linux (Backend) + Native Windows (Agent)
+Hybrid Linux Backend + Native Windows Agent
 
 🛠️ Technology Stack
 Layer	Technology
