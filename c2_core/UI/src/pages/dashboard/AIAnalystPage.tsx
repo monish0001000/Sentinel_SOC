@@ -54,7 +54,7 @@ const AIAnalystPage = () => {
         responseContent = `Current dashboard alerts: **${alerts.length}**\\n\\nLatest alert: **[${latest.level || "unknown"}] ${latest.message || "No message provided"}**\\n\\nThis is a summary of received alert data, not an independent AI verdict.`;
       }
     } else if (lowerMsg.includes("status") || lowerMsg.includes("system")) {
-      responseContent = `**Live dashboard snapshot**\\n- WebSocket: ${metrics ? "connected data available" : "metrics not received"}\\n- Observed connection rate: ${metrics?.packet_rate ?? "not available"}/sec\\n- Active connections: ${metrics?.connections ?? "not available"}\\n- Connection events: ${stats?.totalPackets ?? "not available"}\\n- Current alerts: ${alerts.length}`;
+      responseContent = `**Live dashboard snapshot**\\n- WebSocket: ${metrics ? "connected data available" : "metrics not received"}\\n- Container network packets: ${metrics?.packet_rate ?? "not available"}/sec\\n- Active connections: ${metrics?.connections ?? "not available"}\\n- Connection events: ${stats?.totalPackets ?? "not available"}\\n- Current alerts: ${alerts.length}`;
     } else if (lowerMsg.includes("firewall") || lowerMsg.includes("block")) {
       responseContent = `**Firewall service state**\\n- Active flag: ${firewall.active}\\n- Auto-block flag: ${firewall.autoBlock}\\n- Policy entries: ${firewall.rules.length}\\n- Blocked IP entries: ${firewall.blockedIPs.length}\\n\\nThese are application-reported settings. The Docker passive connection monitor does not itself block host traffic.`;
     } else {
