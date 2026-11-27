@@ -27,23 +27,17 @@ app.add_middleware(
 
 # Global firewall instance (injected from main.py)
 firewall_service: Optional[FirewallService] = None
+edr_manager: Optional[EDRManager] = None
 
 import redis
 import os
 
 @app.on_event("startup")
 async def startup_event():
-    global firewall_service, siem_service, global_risk_engine
+    global firewall_service, siem_service, global_risk_engine, edr_manager
     
-    # --- Reset Firewall State in Redis (User Task) ---
-    try:
-        r = redis.Redis(host=os.getenv('REDIS_HOST', 'redis'), port=6379, db=0)
-        r.set("firewall_status", "active")
-        r.set("lockdown", "false")
-        r.delete("panic_mode") 
-        print("[API] Firewall State Reset (Normal/Active)")
-    except Exception as e:
-        print(f"[API] Failed to reset Redis state: {e}")
+    # Redis keys are initialised by core.redis_state. Never reset lockdown or
+    # panic mode during API startup; those values may represent an active response.
 
     # Check if services are injected (from main.py). If not, init them (uvicorn mode).
     if not firewall_service or not siem_service:
