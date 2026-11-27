@@ -23,7 +23,7 @@ const LogsPage = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">Live Stream</h1>
+            <h1 className="text-2xl font-bold text-foreground">Connection Event Stream</h1>
             <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${
               connectionStatus === "connected"
                 ? "bg-success/10 border-success/20"
@@ -35,7 +35,7 @@ const LogsPage = () => {
               <span className={`text-[10px] font-mono font-medium ${
                 connectionStatus === "connected" ? "text-success" : "text-muted-foreground"
               }`}>
-                {connectionStatus === "connected" ? "STREAMING" : connectionStatus.toUpperCase()}
+                {connectionStatus === "connected" ? "CONNECTED" : connectionStatus.toUpperCase()}
               </span>
             </div>
           </div>
@@ -44,7 +44,7 @@ const LogsPage = () => {
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/30">
           <Zap className={connectionStatus === "connected" ? "w-4 h-4 text-success live-pulse" : "w-4 h-4 text-muted-foreground"} />
           <span className="text-xs font-mono text-muted-foreground">
-            {connectionStatus === "connected" ? "LIVE FEED" : "OFFLINE"}
+            {connectionStatus === "connected" ? "WS CONNECTED" : "OFFLINE"}
           </span>
         </div>
       </div>
