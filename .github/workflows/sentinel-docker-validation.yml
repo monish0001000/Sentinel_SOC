@@ -1,0 +1,25 @@
+name: Sentinel Docker validation
+
+on:
+  push:
+    branches:
+      - "repair/**"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  docker-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build Sentinel C2 image
+        run: docker compose build c2_core
+
+      - name: Run startup integrity unit tests
+        run: docker compose run --rm --no-deps c2_core python -m unittest discover -s tests -v
