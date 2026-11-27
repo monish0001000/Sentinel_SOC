@@ -23,3 +23,6 @@ jobs:
 
       - name: Run startup integrity unit tests
         run: docker compose run --rm --no-deps c2_core python -m unittest discover -s tests -v
+
+      - name: Build dashboard production bundle
+        run: docker compose run --rm dashboard sh -lc "npm install && npm run build"
