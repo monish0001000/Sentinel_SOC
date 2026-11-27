@@ -73,50 +73,58 @@ Sentinel SOC is a **real-time, enterprise-grade Security Operations Center** tha
 
 ---
 
-## 🔧 Quick Start
+## 🔧 Quick Start (Hybrid Docker + Windows)
 
-### Prerequisites
-- Windows 10/11 or Windows Server 2016+
-- Python 3.8+
-- 8GB+ RAM
-- Administrator access
-- Network interface for packet capture
+### Requirements
+- Windows 10/11 (64-bit)
+- Docker Desktop with the WSL 2 engine enabled
+- Git
+- 8 GB RAM minimum (16 GB recommended)
+- Internet connection for the first image and dependency download
 
-### Installation
+### One-command startup
+Open PowerShell in the repository folder and run:
 
-```bash
-# Clone repository
-git clone https://github.com/monish0001000/Sentinel_SOC_project.git
-cd Sentinel_SOC_project
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install Npcap for packet capture
-choco install npcap
-
-# (Optional) Install Redis for distributed mode
-choco install redis
+```powershell
+.\start-sentinel.ps1
 ```
 
-### Running the SOC
+The script checks Docker Desktop, builds and starts the backend, Redis, TimescaleDB and dashboard, waits for the API, and opens the dashboard.
 
-```bash
-# Terminal 1: Start Backend (requires Administrator)
-python c2_core/main.py
+You can also start the stack directly with one Docker command:
 
-# Terminal 2: Start Dashboard
-cd c2_core/UI
-npm run dev
-
-# Access points:
-# - API: http://localhost:8000
-# - API Docs: http://localhost:8000/docs
-# - Dashboard: http://localhost:8080
-# - WebSocket: ws://localhost:8765
+```powershell
+docker compose up --build -d
 ```
 
----
+Open:
+- Dashboard: http://localhost:8080
+- API docs: http://localhost:8000/docs
+- WebSocket: ws://localhost:8765
+
+To stop the stack:
+
+```powershell
+docker compose down
+```
+
+Do not add `-v` if you want to keep local Redis and database data. `docker compose down -v` intentionally deletes the local persistent volumes.
+
+### Hybrid architecture boundary
+Docker runs the API/backend, dashboard, Redis and TimescaleDB. Windows Event Log access and WinDivert packet filtering require a native Windows process, the appropriate driver and (for packet filtering) Administrator permissions. A Linux container cannot provide those host-level capabilities. Do not treat Windows host monitoring or packet blocking as active until the native integration is separately installed and verified.
+
+### Fresh clone
+```powershell
+git clone --branch repair/sentinel-core-foundation https://github.com/monish0001000/Sentinel_SOC.git
+cd Sentinel_SOC
+.\start-sentinel.ps1
+```
+
+If startup fails, inspect the container logs:
+
+```powershell
+docker compose logs --tail=200
+```
 
 ## 📁 Project Structure
 
