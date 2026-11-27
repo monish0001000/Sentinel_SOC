@@ -14,7 +14,7 @@ const DashboardLayout = () => {
   }, [navigate]);
 
   return (
-    <div className="flex min-h-screen bg-background scan-line-overlay cyber-grid">
+    <div className="sentinel-app flex min-h-screen bg-background scan-line-overlay cyber-grid">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <TopBar />
