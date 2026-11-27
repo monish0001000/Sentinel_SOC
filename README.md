@@ -40,6 +40,7 @@ Do not treat dashboard sample values, heuristic outputs, or unverified modules a
 - Windows 10/11 (64-bit)
 - Docker Desktop with the WSL 2 engine enabled
 - Git
+- Python 3.10+ (only if you also run the optional Windows host agent)
 - 8 GB RAM minimum (16 GB recommended)
 - Internet connection for the first image and dependency download
 
