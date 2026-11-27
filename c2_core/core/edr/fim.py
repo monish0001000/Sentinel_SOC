@@ -389,7 +389,7 @@ class FileIntegrityMonitor:
         self.baseline_hashes = {}
         if os.name == "nt":
             self.monitored_paths = [
-                r"C:\\Windows\\System32\\drivers\\etc",
+                r"C:\Windows\System32\drivers\etc",
                 os.path.expandvars(r"%ProgramData%"),
             ]
         else:
