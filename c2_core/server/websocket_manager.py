@@ -56,7 +56,7 @@ class RealTimeStats:
             self.targeted_ports[port_label] += 1
             
         self.total_packets += 1
-        if status == "ALLOW": self.allowed += 1
+        if status in {"ALLOW", "OBSERVED", "ESTABLISHED"}: self.allowed += 1
         elif status == "BLOCKED": self.threats_blocked += 1
         else: self.suspicious += 1
 
