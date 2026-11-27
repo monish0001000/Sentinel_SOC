@@ -1,10 +1,9 @@
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Brain, Send, Sparkles, AlertTriangle, Shield, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { mockAIResponses } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -33,7 +32,6 @@ const AIAnalystPage = () => {
     },
   ]);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
 
   const handleSend = (message: string) => {
     if (!message.trim()) return;
@@ -45,85 +43,41 @@ const AIAnalystPage = () => {
       timestamp: new Date().toLocaleTimeString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsTyping(true);
+    const lowerMsg = message.toLowerCase();
+    let responseContent = "";
 
-    // Simulate AI response with REAL context
-    setTimeout(() => {
-      let responseContent = "";
-      const lowerMsg = message.toLowerCase();
-
-      if (lowerMsg.includes("threat") || lowerMsg.includes("alert")) {
-        if (alerts.length === 0) {
-          responseContent = "I am currently detecting **0 active threats**. The system appears stable and secure.";
-        } else {
-          responseContent = `I have identified **${alerts.length} active threats** currently targeting the system.\n\nMost recent alert: **[${alerts[alerts.length - 1].level}] ${alerts[alerts.length - 1].message}**.\n\nRecommended Action: Investigate the source IP immediately and verify firewall rules.`;
-        }
-      } else if (lowerMsg.includes("status") || lowerMsg.includes("system")) {
-        responseContent = `**System Status Report**:\n- Packet Rate: ${metrics?.packet_rate}/sec\n- Active Connections: ${metrics?.connections}\n- Total Packets Processed: ${stats?.totalPackets}\n\nThe system is operational.`;
-      } else if (lowerMsg.includes("firewall") || lowerMsg.includes("block")) {
-        // Firewall queries
-        if (lowerMsg.includes("auto")) {
-          responseContent = `**Firewall Auto-Block** is currently **${firewall.autoBlock ? "ENABLED" : "DISABLED"}**.\n\nStatus: **${firewall.active ? "Active Enforcement" : "Bypassed"}**`;
-        } else if (lowerMsg.includes("why") && (lowerMsg.includes("ip") || lowerMsg.includes("port"))) {
-          // Try to find an IP in the message
-          const ipMatch = message.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-          const portMatch = message.match(/port\s*(\d+)/i);
-
-          if (ipMatch) {
-            const rule = firewall.rules.find(r => r.target === ipMatch[0]);
-            if (rule) {
-              responseContent = `IP **${ipMatch[0]}** was blocked on **${new Date(rule.timestamp).toLocaleTimeString()}**.\n\nReason: **${rule.reason}**`;
-            } else {
-              responseContent = `IP **${ipMatch[0]}** is NOT currently blocked by the firewall.`;
-            }
-          } else if (portMatch) {
-            const port = parseInt(portMatch[1]);
-            const rule = firewall.rules.find(r => r.target === port);
-            if (rule) {
-              responseContent = `Port **${port}** was blocked on **${new Date(rule.timestamp).toLocaleTimeString()}**.\n\nReason: **${rule.reason}**`;
-            } else {
-              responseContent = `Port **${port}** is NOT currently blocked.`;
-            }
-          } else {
-            responseContent = `I can explain why an IP or Port was blocked. Please specify the IP or Port number.`;
-          }
-        } else if (lowerMsg.includes("list") || lowerMsg.includes("show")) {
-          responseContent = `**Firewall Block List**:\n- Blocked IPs: ${firewall.blockedIPs.length}\n- Blocked Ports: ${firewall.blockedPorts.length}\n\nTop blocked: ${firewall.blockedIPs.slice(0, 3).join(", ")}...`;
-        } else {
-          responseContent = `**Firewall Status**:\n- Active: ${firewall.active}\n- Auto-Block: ${firewall.autoBlock}\n- Rules Active: ${firewall.rules.length}\n\nI can help you manage the firewall or explain blocks.`;
-        }
+    if (lowerMsg.includes("threat") || lowerMsg.includes("alert") || lowerMsg.includes("suspicious")) {
+      if (alerts.length === 0) {
+        responseContent = "There are no active alerts in the current dashboard feed. This does not prove the host is secure; it only means no alert is currently being reported.";
       } else {
-        const responseKey = Object.keys(mockAIResponses).find((key) =>
-          message.toLowerCase().includes(key.toLowerCase())
-        ) as keyof typeof mockAIResponses || "default";
-        // Check if responseKey is valid in mockAIResponses
-        if (responseKey !== "default" && mockAIResponses[responseKey as keyof typeof mockAIResponses]) {
-          responseContent = mockAIResponses[responseKey as keyof typeof mockAIResponses].join("\n\n");
-        } else {
-          responseContent = "I am analyzing the latest security telemetry. I can help you identifying threats, explaining logs, or checking system status. What would you like to know?";
-        }
+        const latest = alerts[alerts.length - 1];
+        responseContent = `Current dashboard alerts: **${alerts.length}**\\n\\nLatest alert: **[${latest.level || "unknown"}] ${latest.message || "No message provided"}**\\n\\nThis is a summary of received alert data, not an independent AI verdict.`;
       }
+    } else if (lowerMsg.includes("status") || lowerMsg.includes("system")) {
+      responseContent = `**Live dashboard snapshot**\\n- WebSocket: ${metrics ? "connected data available" : "metrics not received"}\\n- Observed connection rate: ${metrics?.packet_rate ?? "not available"}/sec\\n- Active connections: ${metrics?.connections ?? "not available"}\\n- Connection events: ${stats?.totalPackets ?? "not available"}\\n- Current alerts: ${alerts.length}`;
+    } else if (lowerMsg.includes("firewall") || lowerMsg.includes("block")) {
+      responseContent = `**Firewall service state**\\n- Active flag: ${firewall.active}\\n- Auto-block flag: ${firewall.autoBlock}\\n- Policy entries: ${firewall.rules.length}\\n- Blocked IP entries: ${firewall.blockedIPs.length}\\n\\nThese are application-reported settings. The Docker passive connection monitor does not itself block host traffic.`;
+    } else {
+      responseContent = "No AI model is connected to this page in the current build. I can summarize live alerts, connection metrics and firewall settings only; I will not invent threat findings or simulated analysis.";
+    }
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: responseContent,
-        timestamp: new Date().toLocaleTimeString(),
-      };
+    const assistantMessage: Message = {
+      id: `${Date.now()}-assistant`,
+      role: "assistant",
+      content: responseContent,
+      timestamp: new Date().toLocaleTimeString(),
+    };
 
-      setMessages((prev) => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1200);
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setInput("");
   };
 
   const handleQuickAction = (action: string) => {
     const prompts = {
-      explain: "Explain the latest brute force attack log entry",
-      suspicious: "Is the SSH login attempt from 192.168.1.105 suspicious?",
-      attackType: "What type of attack is happening based on recent logs?",
-      recommendation: "What security recommendations do you have?",
+      explain: "Summarize the latest alert",
+      suspicious: "Summarize the current alerts",
+      attackType: "What alert types are currently present?",
+      recommendation: "Show the current firewall status",
     };
     handleSend(prompts[action as keyof typeof prompts]);
   };
@@ -134,9 +88,9 @@ const AIAnalystPage = () => {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
           <Brain className="w-7 h-7 text-primary" />
-          AI Security Analyst
+          SOC Context Assistant
         </h1>
-        <p className="text-muted-foreground">Ask questions about logs and threats</p>
+        <p className="text-muted-foreground">Rule-based summaries from live dashboard data. No LLM is connected in this build.</p>
       </div>
 
       {/* Chat Area */}
@@ -175,24 +129,7 @@ const AIAnalystPage = () => {
             </motion.div>
           ))}
 
-          {isTyping && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex gap-3"
-            >
-              <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Brain className="w-4 h-4 text-primary animate-pulse" />
-              </div>
-              <div className="bg-muted/50 rounded-lg p-4">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
-                </div>
-              </div>
-            </motion.div>
-          )}
+}
         </div>
 
         {/* Quick Actions */}
@@ -225,7 +162,7 @@ const AIAnalystPage = () => {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about logs, threats, or security recommendations..."
+              placeholder="Ask about current alerts, metrics, or firewall settings..."
               className="flex-1 bg-background/50"
             />
             <Button type="submit" className="gap-2">
