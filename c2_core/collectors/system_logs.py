@@ -31,6 +31,7 @@ class SystemLogCollector:
         """Start real-time monitoring"""
         # Capture the active asyncio loop before starting worker threads.
         self.loop = asyncio.get_running_loop()
+        self.running = True
 
         # Start system metrics collection (1 second interval)
         self.metrics_thread = threading.Thread(target=self._collect_metrics, daemon=True)
