@@ -30,6 +30,20 @@ if (-not $ready) {
     exit 1
 }
 
+Write-Host "Waiting for the dashboard..." -ForegroundColor Yellow
+$dashboardReady = $false
+for ($i = 0; $i -lt 45; $i++) {
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:8080" -TimeoutSec 2 -UseBasicParsing
+        if ($response.StatusCode -eq 200) { $dashboardReady = $true; break }
+    } catch { Start-Sleep -Seconds 2 }
+}
+
+if (-not $dashboardReady) {
+    Write-Warning "The API is ready, but the dashboard is not responding yet. Check: docker compose logs --tail=200 dashboard"
+    exit 1
+}
+
 Start-Process "http://localhost:8080"
 Write-Host "Dashboard: http://localhost:8080" -ForegroundColor Green
 Write-Host "API docs: http://localhost:8000/docs" -ForegroundColor Green
