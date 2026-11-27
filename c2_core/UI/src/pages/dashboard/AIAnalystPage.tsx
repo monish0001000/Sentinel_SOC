@@ -14,10 +14,10 @@ interface Message {
 }
 
 const quickActions = [
-  { id: "explain", label: "Explain this log", icon: Lightbulb },
-  { id: "suspicious", label: "Is this suspicious?", icon: AlertTriangle },
-  { id: "attackType", label: "Attack type", icon: Shield },
-  { id: "recommendation", label: "Security tips", icon: Sparkles },
+  { id: "explain", label: "Summarize latest alert", icon: Lightbulb },
+  { id: "suspicious", label: "Summarize alerts", icon: AlertTriangle },
+  { id: "attackType", label: "Alert types", icon: Shield },
+  { id: "recommendation", label: "Firewall status", icon: Sparkles },
 ];
 
 const AIAnalystPage = () => {
@@ -27,7 +27,7 @@ const AIAnalystPage = () => {
       id: "1",
       role: "assistant",
       content:
-        "Hello, SOC Analyst. I'm Sentinel AI, your security intelligence assistant. I can help you analyze logs, identify attack patterns, and provide security recommendations. How can I assist you today?",
+        "This page can summarize current dashboard data. No AI model is connected in this build, so it will not invent analysis or threat findings.",
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -128,8 +128,6 @@ const AIAnalystPage = () => {
               </div>
             </motion.div>
           ))}
-
-}
         </div>
 
         {/* Quick Actions */}
