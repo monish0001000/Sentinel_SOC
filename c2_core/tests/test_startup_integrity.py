@@ -1,8 +1,11 @@
 import asyncio
+import os
+import tempfile
 import unittest
 
 from core.redis_state import initialize_redis_state
 from core.seeder import seed_data
+from core.edr.fim import FileIntegrityMonitor
 
 
 class FakeRedis:
@@ -81,6 +84,29 @@ class SeederTests(unittest.TestCase):
 
         self.assertEqual(firewall.policies, [existing])
         self.assertEqual(siem.events, [])
+
+
+class FileIntegrityTests(unittest.TestCase):
+    def test_sha256_baseline_detects_a_file_change_once(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filepath = os.path.join(temp_dir, "important.ps1")
+            with open(filepath, "w", encoding="utf-8") as stream:
+                stream.write("Write-Host 'baseline'")
+
+            monitor = FileIntegrityMonitor(bus=None)
+            initial = monitor.verify_file_integrity(filepath)
+            self.assertFalse(initial["modified"])
+            self.assertTrue(initial["baseline_created"])
+
+            with open(filepath, "w", encoding="utf-8") as stream:
+                stream.write("Write-Host 'changed'")
+
+            changed = monitor.verify_file_integrity(filepath)
+            self.assertTrue(changed["modified"])
+            self.assertNotEqual(changed["baseline_hash"], changed["current_hash"])
+
+            unchanged = monitor.verify_file_integrity(filepath)
+            self.assertFalse(unchanged["modified"])
 
 
 if __name__ == "__main__":
