@@ -27,29 +27,15 @@ export const LiveLogViewer = ({ logs, onLogClick }: LiveLogViewerProps) => {
   };
 
   const statusConfig = {
-    allowed: { color: "text-success", icon: "●" },
+    observed: { color: "text-muted-foreground", icon: "●" },
+    allowed: { color: "text-muted-foreground", icon: "●" },
     blocked: { color: "text-destructive", icon: "◉" },
     suspicious: { color: "text-warning", icon: "◐" },
   };
 
-  // Simulate live streaming
+  // Render only events received from the backend; never replay or fabricate logs.
   useEffect(() => {
-    if (isPaused) return;
-
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index < logs.length) {
-        setDisplayedLogs((prev) => {
-          const newLog = { ...logs[index], id: `${logs[index].id}-${Date.now()}` };
-          return [newLog, ...prev].slice(0, 100);
-        });
-        index++;
-      } else {
-        index = 0;
-      }
-    }, 1500);
-
-    return () => clearInterval(interval);
+    if (!isPaused) setDisplayedLogs(logs.slice(0, 100));
   }, [logs, isPaused]);
 
   // Auto scroll
@@ -158,7 +144,7 @@ export const LiveLogViewer = ({ logs, onLogClick }: LiveLogViewerProps) => {
           {(filteredLogs || []).map((log) => { // Safety check
             if (!log) return null; // Extra safety
             const level = levelConfig[log.level] || levelConfig["info"]; // Fallback if level is missing
-            const status = statusConfig[log.status || "allowed"]; // Fallback if status is missing
+            const status = statusConfig[log.status] || statusConfig.observed; // Unknown statuses remain neutral
 
             return (
               <motion.div
