@@ -39,7 +39,7 @@ const LogsPage = () => {
               </span>
             </div>
           </div>
-          <p className="text-muted-foreground text-sm mt-1">Real-time packet inspection and threat detection</p>
+          <p className="text-muted-foreground text-sm mt-1">Connection observations and alerts received from the backend</p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/30">
           <Zap className={connectionStatus === "connected" ? "w-4 h-4 text-success live-pulse" : "w-4 h-4 text-muted-foreground"} />
@@ -58,7 +58,7 @@ const LogsPage = () => {
         <div className="glass-card rounded-lg p-3 border border-border/50">
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">Packets</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">Connection Events</span>
           </div>
           <AnimatedCounter value={stats.totalPackets} className="text-lg font-bold font-mono text-foreground" />
         </div>
@@ -66,7 +66,7 @@ const LogsPage = () => {
         <div className="glass-card rounded-lg p-3 border border-destructive/20">
           <div className="flex items-center gap-2 mb-1">
             <Shield className="w-3.5 h-3.5 text-destructive" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">Blocked</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">Enforced Blocks</span>
           </div>
           <AnimatedCounter value={stats.threatsBlocked} className="text-lg font-bold font-mono text-destructive" />
         </div>
@@ -74,7 +74,7 @@ const LogsPage = () => {
         <div className="glass-card rounded-lg p-3 border border-warning/20">
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle className="w-3.5 h-3.5 text-warning" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">Suspicious</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">Policy Matches</span>
           </div>
           <AnimatedCounter value={stats.suspicious} className="text-lg font-bold font-mono text-warning" />
         </div>
@@ -82,7 +82,7 @@ const LogsPage = () => {
         <div className="glass-card rounded-lg p-3 border border-success/20">
           <div className="flex items-center gap-2 mb-1">
             <Activity className="w-3.5 h-3.5 text-success" />
-            <span className="text-[10px] text-muted-foreground font-medium uppercase">Allowed</span>
+            <span className="text-[10px] text-muted-foreground font-medium uppercase">Observed / Allowed</span>
           </div>
           <AnimatedCounter value={stats.allowed} className="text-lg font-bold font-mono text-success" />
         </div>
