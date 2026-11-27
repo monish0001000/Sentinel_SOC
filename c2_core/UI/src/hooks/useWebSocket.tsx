@@ -200,7 +200,28 @@ export const WebSocketProvider = ({
           }
 
           if (data.type === "packet_event") {
-            setState(prev => ({ ...prev, packetStream: data.payload }));
+            const event = data.payload || {};
+            const eventStatus = event.status === "BLOCKED"
+              ? "blocked"
+              : event.status === "POLICY_MATCH"
+                ? "suspicious"
+                : "observed";
+            const logEntry = {
+              id: event.uid || `${event.id || "connection"}-${event.timestamp || Date.now()}`,
+              timestamp: event.timestamp || new Date().toISOString(),
+              level: event.status === "BLOCKED" || event.status === "POLICY_MATCH" ? "warning" : "info",
+              source: event.source || "Connection Monitor",
+              message: `${event.status || "OBSERVED"} ${event.src_ip || "?"}:${event.src_port || "?"} -> ${event.dst_ip || "?"}:${event.dst_port || "?"} (${event.protocol || "unknown"})`,
+              ip: event.src_ip,
+              status: eventStatus,
+              protocol: event.protocol,
+              port: event.dst_port,
+            };
+            setState(prev => ({
+              ...prev,
+              packetStream: event,
+              logs: [logEntry, ...prev.logs].slice(0, 100),
+            }));
           }
 
           if (data.type === "risk" || data.type === "global_risk") {
