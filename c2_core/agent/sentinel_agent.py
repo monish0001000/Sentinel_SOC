@@ -77,10 +77,15 @@ class SentinelAgent:
             return "127.0.0.1"
 
     def get_stats(self):
+        disk_path = (
+            os.environ.get("SystemDrive", "C:") + os.sep
+            if os.name == "nt"
+            else "/"
+        )
         return {
             "cpu": psutil.cpu_percent(),
             "memory": psutil.virtual_memory().percent,
-            "disk": psutil.disk_usage('/').percent,
+            "disk": psutil.disk_usage(disk_path).percent,
             "processes": len(psutil.pids())
         }
 
@@ -200,10 +205,7 @@ class SentinelAgent:
                 await asyncio.sleep(self.retry_delay)
                 self.retry_delay = min(self.retry_delay * 2, 60)
                             
-            except Exception as e:
-                print(f"[AGENT] ⏳ Waiting for C2 Server to start... (Retry in {self.retry_delay}s)")
-                await asyncio.sleep(self.retry_delay)
-                self.retry_delay = min(self.retry_delay * 2, 60) # Exponential backoff (max 60s)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
