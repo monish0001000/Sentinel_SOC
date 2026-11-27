@@ -25,9 +25,13 @@ class SystemLogCollector:
         self.event_log_handles = {}
         self.metrics_thread = None
         self.event_log_thread = None
+        self.loop = None
 
     async def start(self):
         """Start real-time monitoring"""
+        # Capture the active asyncio loop before starting worker threads.
+        self.loop = asyncio.get_running_loop()
+
         # Start system metrics collection (1 second interval)
         self.metrics_thread = threading.Thread(target=self._collect_metrics, daemon=True)
         self.metrics_thread.start()
@@ -51,7 +55,8 @@ class SystemLogCollector:
             try:
                 cpu = psutil.cpu_percent(interval=0.1)
                 mem = psutil.virtual_memory()
-                disk = psutil.disk_usage('C:/' if 'C:' not in psutil.disk_partitions()[0].device else 'C:')
+                disk_path = "C:/" if platform.system() == "Windows" else "/"
+                disk = psutil.disk_usage(disk_path)
                 
                 event = {
                     "type": "system_metrics",
@@ -197,13 +202,10 @@ class SystemLogCollector:
             }
 
     def _get_loop(self):
-        """Get the current event loop (thread-safe)"""
-        try:
-            return asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            return loop
+        """Return the running event loop captured by start()."""
+        if self.loop is None or self.loop.is_closed():
+            raise RuntimeError("SystemLogCollector has not been started on an active event loop")
+        return self.loop
 
     def stop(self):
         """Stop all monitoring"""
