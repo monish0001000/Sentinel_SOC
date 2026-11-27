@@ -6,7 +6,7 @@ on:
       - "feature/firebase-web-edr-mvp"
   pull_request:
     branches:
-      - main
+      - "repair/**"
     paths:
       - "c2_core/UI/**"
       - ".github/workflows/sentinel-web-ui.yml"
