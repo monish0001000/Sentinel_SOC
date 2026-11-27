@@ -81,6 +81,7 @@ After Docker is running, open a second PowerShell window and run:
 This connects the Windows machine to the WebSocket service and reports host CPU, memory, disk and process-count metrics to the agent panel. It is a separate process from the Docker backend. Keep the window open while monitoring.
 
 Current limitation: this agent does not yet stream Windows Event Logs, full packet captures, or host file-integrity events into the detection pipeline. Do not describe those capabilities as active until that integration is implemented and tested.
+Remote endpoint response commands are disabled by default. Do not enable them on a daily-use laptop: the current network-isolation helper can reset Windows Firewall rules. Any response-action redesign must be reviewed and tested before enabling it.
 
 ### Hybrid architecture boundary
 Docker runs the API/backend, dashboard, Redis and TimescaleDB. Windows Event Log access and WinDivert packet filtering require a native Windows process, the appropriate driver and (for packet filtering) Administrator permissions. A Linux container cannot provide those host-level capabilities. Do not treat Windows host monitoring or packet blocking as active until the native integration is separately installed and verified.
