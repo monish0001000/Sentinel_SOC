@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 
 from agent.sentinel_agent import SentinelAgent
@@ -12,6 +13,16 @@ class WindowsAgentSmokeTests(unittest.TestCase):
         self.assertGreaterEqual(stats["memory"], 0)
         self.assertGreaterEqual(stats["disk"], 0)
         self.assertGreaterEqual(stats["processes"], 0)
+
+    def test_remote_response_is_disabled_by_default(self):
+        agent = object.__new__(SentinelAgent)
+        agent.allow_remote_response = False
+        result = asyncio.run(agent.execute_command({
+            "command": "isolate_host",
+            "args": {"whitelist": ["127.0.0.1"]},
+            "id": "test-command",
+        }))
+        self.assertEqual(result["result"]["status"], "disabled")
 
 
 if __name__ == "__main__":
