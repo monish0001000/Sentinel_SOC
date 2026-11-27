@@ -1,77 +1,38 @@
-# 🎯 Sentinel SOC v2.0.0 - Enterprise Real-Time Security Operations Center
+# Sentinel SOC — Hybrid SOC Development Build
 
-**Production-Grade Real-Time SOC with Advanced Threat Detection & Automated Response**
+**Windows endpoint telemetry + containerised SOC backend. This branch is under active repair and validation; it is not a production deployment.**
 
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Production](https://img.shields.io/badge/Status-Production--Ready-brightgreen)](/)
+[![Status: Under Validation](https://img.shields.io/badge/Status-Under--Validation-orange)](/)
 
 ---
 
 ## 🚀 Overview
 
-Sentinel SOC is a **real-time, enterprise-grade Security Operations Center** that integrates advanced threat detection, automated response, and AI-powered analysis to provide comprehensive security monitoring across Windows environments.
+Sentinel SOC is a cybersecurity learning and engineering project being repaired into a hybrid architecture:
 
-> **What sets this apart:** Zero simulation overhead. Everything runs in **real-time** with sub-millisecond response times.
+- **Docker:** API/backend, dashboard, Redis and TimescaleDB.
+- **Windows host agent:** CPU, memory, disk and process-count telemetry over the local WebSocket connection.
+- **Windows-specific integrations:** Event Log collection and WinDivert-based packet filtering require separate native Windows setup and have not been validated in this branch.
 
----
+## 📌 Current implementation status
 
-## ✨ Core Features
+| Area | What the code currently does | Important boundary |
+|---|---|---|
+| Startup state | Initialises missing Sentinel Redis keys without flushing shared Redis data | Redis persistence tests are included; runtime Docker test is pending |
+| SIEM | Uses the repository's SQLite-backed log repository and hash-chain logic | Do not describe it as a blockchain or claim tamper-proof guarantees without independent verification |
+| Network visibility | Polls active socket connections with `psutil` | This is not full packet capture or DPI |
+| Windows host agent | Reports CPU, memory, disk and process-count metrics | Does not yet forward Windows Event Logs or host FIM events into detection |
+| File integrity | Uses watchdog and SHA-256 baselines for configured paths | Not a complete endpoint-wide FIM deployment |
+| Firewall | Contains application policy logic and a Windows WinDivert integration | WinDivert driver/admin requirements and actual traffic blocking are not validated here |
+| AI / SOAR | Detection, prediction and response modules exist in the codebase | End-to-end AI analysis and automated response have not been validated in this branch |
 
-### 🔴 **Real-Time Monitoring**
-- **Windows Event Log Streaming** (<50ms latency)
-- **Live Network Packet Capture** (<200ms detection)
-- **Process Behavior Analysis** (2-second polling)
-- **File Integrity Monitoring** (Real-time changes)
-- **Kernel-Level Firewall** (<5ms blocking)
+## 🧪 Validation policy
 
-### 🎯 **Advanced Threat Detection**
-- ✓ Ransomware detection (extension changes, mass encryption)
-- ✓ Lateral movement detection (SMB, RDP, WinRM)
-- ✓ Privilege escalation detection
-- ✓ Process injection detection
-- ✓ LOLBin abuse detection (11+ binaries)
-- ✓ Command obfuscation detection
-- ✓ Suspicious DNS queries
-- ✓ Malware C2 communication
+Do not treat dashboard sample values, heuristic outputs, or unverified modules as confirmed live detections. This branch adds regression tests and CI build checks, but a passing unit test is not proof that the full SOC works on a Windows laptop. Docker startup, WebSocket connection, endpoint telemetry, Windows Event Logs, packet filtering and SOAR actions must each be verified separately.
 
-### 🤖 **AI & Intelligence**
-- Real-time threat intelligence (AbuseIPDB, VirusTotal)
-- MITRE ATT&CK framework mapping
-- Predictive threat engine
-- Behavioral anomaly detection
-- Automatic incident creation
-
-### ⚡ **Automated Response**
-- SOAR playbooks (4 core responses)
-- Automatic threat remediation
-- Sub-second incident response
-- Firewall policy enforcement
-- Evidence collection & reporting
-
-### 🛡️ **Enterprise Features**
-- Blockchain-secured SIEM (immutable logs)
-- Self-healing infrastructure
-- Zero-trust policies
-- Real-time WebSocket dashboard
-- REST API with full documentation
-- Docker containerization
-
----
-
-## 📊 Performance Metrics
-
-| Metric | Performance |
-|--------|-------------|
-| Event Ingestion | <50ms |
-| Network Detection | <200ms |
-| Process Alerting | <100ms |
-| Firewall Blocking | <5ms |
-| Dashboard Updates | <100ms (WebSocket) |
-| Throughput | 10,000+ events/sec |
-| Concurrent Connections | 1,000+ |
-
----
+**Performance figures are not claimed in this development README.** Benchmark only after repeatable measurements on a documented test environment.
 
 ## 🔧 Quick Start (Hybrid Docker + Windows)
 
