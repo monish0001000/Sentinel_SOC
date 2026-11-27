@@ -49,19 +49,16 @@ class PacketSniffer:
                         # Zero Trust: Pass PID to Firewall for Process Verification
                         action = self.firewall.match_traffic(remote_ip, remote_port, pid=conn.pid)
                         
-                        status = conn.status
-                        if action == "deny":
-                            status = "BLOCKED"
-                            # Emit Alert for Blocked Traffic
-                            # Limit alert spam
-                            if conn_id not in self.known_connections:
-                                await self.bus.publish("alert", {
-                                    "message": f"Firewall Rule Hit: Blocked traffic to/from {remote_ip}:{remote_port}",
-                                    "level": "WARNING",
-                                    "severity": "medium",
-                                    "source": "Wall",
-                                    "type": "Policy Violation"
-                                })
+                        # This collector observes sockets; it does not block traffic.
+                        status = "POLICY_MATCH" if action == "deny" else "OBSERVED"
+                        if action == "deny" and conn_id not in self.known_connections:
+                            await self.bus.publish("alert", {
+                                "message": f"Observed connection matches a deny policy: {remote_ip}:{remote_port}. Passive monitoring did not block it.",
+                                "level": "WARNING",
+                                "severity": "medium",
+                                "source": "Connection Monitor",
+                                "type": "Policy Match"
+                            })
 
                         packet_data = {
                             "id": conn_id,
