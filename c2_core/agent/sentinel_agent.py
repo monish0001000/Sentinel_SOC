@@ -44,6 +44,7 @@ class SentinelAgent:
         self.ip = self.get_ip()
         self.os_info = f"{platform.system()} {platform.release()}"
         self.running = True
+        self.allow_remote_response = os.getenv("SENTINEL_ENABLE_REMOTE_RESPONSE", "false").lower() == "true"
         
         print(f"[AGENT] Initialized. ID: {self.agent_id} | Host: {self.hostname}")
 
@@ -51,7 +52,10 @@ class SentinelAgent:
 
     def load_or_create_id(self):
         current_hostname = socket.gethostname()
-        path = os.path.join(os.path.dirname(__file__), AGENT_ID_FILE)
+        state_root = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+        state_dir = os.path.join(state_root, "SentinelSOC")
+        os.makedirs(state_dir, exist_ok=True)
+        path = os.path.join(state_dir, AGENT_ID_FILE)
         
         if os.path.exists(path):
             try:
@@ -114,20 +118,19 @@ class SentinelAgent:
         
         result = {"status": "error", "message": "Unknown command"}
         
-        if command == "kill_implant": # kill_process
+        if command == "ping":
+            result = {"status": "success", "message": "pong"}
+        elif command in {"kill_implant", "isolate_host", "lift_isolation"} and not self.allow_remote_response:
+            result = {"status": "disabled", "message": "Remote response actions are disabled on this endpoint."}
+        elif command == "kill_implant":
             pid = args.get("pid")
             if pid:
                 result = AgentCapabilities.kill_process(int(pid))
-        
         elif command == "isolate_host":
             whitelist = args.get("whitelist", [])
             result = AgentCapabilities.isolate_network(whitelist)
-            
         elif command == "lift_isolation":
             result = AgentCapabilities.lift_isolation()
-            
-        elif command == "ping":
-            result = {"status": "success", "message": "pong"}
 
         # Return result
         response = {
