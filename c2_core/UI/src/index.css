@@ -357,3 +357,140 @@
     animation: counter-update 0.3s ease-out;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   SENTINEL SOC — AURORA LIGHT DESIGN SYSTEM
+   Calm, high-contrast surfaces with restrained depth and motion.
+   ───────────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 222 35% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 35% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 35% 15%;
+    --primary: 215 88% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 30% 94%;
+    --secondary-foreground: 222 35% 22%;
+    --muted: 216 28% 94%;
+    --muted-foreground: 218 13% 46%;
+    --accent: 214 75% 96%;
+    --accent-foreground: 215 75% 38%;
+    --destructive: 0 72% 54%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 37 92% 50%;
+    --warning-foreground: 222 35% 15%;
+    --success: 151 62% 40%;
+    --success-foreground: 0 0% 100%;
+    --border: 218 24% 89%;
+    --input: 218 24% 89%;
+    --ring: 215 88% 53%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 218 16% 38%;
+    --sidebar-primary: 215 88% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 75% 96%;
+    --sidebar-accent-foreground: 215 75% 38%;
+    --sidebar-border: 218 24% 91%;
+    --sidebar-ring: 215 88% 53%;
+    --cyber-glow: 215 88% 53%;
+    --threat-critical: 0 72% 54%;
+    --threat-high: 16 82% 54%;
+    --threat-medium: 37 92% 50%;
+    --threat-low: 151 62% 40%;
+    --threat-info: 215 88% 53%;
+    --agent-connected: 151 62% 40%;
+    --agent-disconnected: 0 72% 54%;
+    --agent-learning: 37 92% 50%;
+    --agent-active: 215 88% 53%;
+    --gradient-cyber: linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
+    --gradient-glow: linear-gradient(135deg, rgba(48,112,232,.12), transparent);
+    --gradient-threat: linear-gradient(135deg, rgba(220,65,65,.10), transparent);
+    --gradient-glass: linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,255,.82));
+    --radius: 1rem;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    background:
+      radial-gradient(ellipse at 12% 0%, rgba(91,145,255,.09), transparent 34rem),
+      radial-gradient(ellipse at 92% 12%, rgba(110,190,220,.08), transparent 30rem),
+      hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  ::selection { background: rgba(50,116,230,.18); color: #173b76; }
+}
+.sentinel-app {
+  min-height: 100vh;
+  background: transparent;
+  color: #1c2940;
+}
+.sentinel-app .glass-card,
+.sentinel-app .glass-card-strong {
+  background: rgba(255,255,255,.86);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  border: 1px solid rgba(218,226,239,.9);
+  box-shadow: 0 12px 36px rgba(31,53,89,.055), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.sentinel-app .cyber-grid {
+  background-image:
+    linear-gradient(rgba(65,112,190,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(65,112,190,.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+.sentinel-app .scan-line-overlay::before { display:none; }
+.sentinel-app .text-white { color:#1d2a40 !important; }
+.sentinel-app .text-gray-300 { color:#52627b !important; }
+.sentinel-app .text-gray-400 { color:#697993 !important; }
+.sentinel-app .text-gray-500 { color:#77869d !important; }
+.sentinel-app .text-gray-600 { color:#8390a5 !important; }
+.sentinel-app .bg-black\/20,
+.sentinel-app .bg-black\/30,
+.sentinel-app .bg-black\/40,
+.sentinel-app .bg-black\/50 { background-color:rgba(238,243,251,.82) !important; }
+.sentinel-app .border-white\/5,
+.sentinel-app .border-white\/10,
+.sentinel-app .border-white\/20 { border-color:rgba(207,218,235,.82) !important; }
+.sentinel-app .cyber-border {
+  border:1px solid #e0e7f2;
+  border-radius:18px;
+  background:rgba(255,255,255,.84);
+  box-shadow:0 10px 30px rgba(34,58,94,.045);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s, border-color .35s;
+}
+.sentinel-app .cyber-border:hover {
+  transform:translateY(-4px);
+  border-color:#b8cdf2;
+  box-shadow:0 20px 42px rgba(41,87,160,.10);
+}
+.sentinel-app .glow-cyan,
+.sentinel-app .glow-success,
+.sentinel-app .glow-warning,
+.sentinel-app .glow-red {
+  box-shadow:0 8px 22px rgba(48,112,232,.13);
+}
+.sentinel-app .glow-text { text-shadow:none; }
+.sentinel-app .status-dot-connected { box-shadow:0 0 0 4px rgba(29,163,105,.12); }
+.sentinel-app .status-dot-disconnected { box-shadow:0 0 0 4px rgba(220,65,65,.10); }
+.sentinel-app aside { box-shadow:8px 0 34px rgba(32,53,88,.035); }
+.sentinel-app main { scroll-behavior:smooth; }
+.sentinel-app button,
+.sentinel-app a,
+.sentinel-app [role="button"] { -webkit-tap-highlight-color:transparent; }
+.sentinel-app button:focus-visible,
+.sentinel-app a:focus-visible { outline:3px solid rgba(48,112,232,.25); outline-offset:3px; }
+.sentinel-app .rounded-xl,
+.sentinel-app .rounded-2xl { border-radius:18px; }
+.sentinel-app .bg-card { background-color:#fff; }
+.sentinel-app .bg-background { background-color:#f7f9fd; }
+.sentinel-app .bg-muted\/20 { background-color:#f2f5fa; }
+.sentinel-app .text-primary { color:#2869d8; }
+.sentinel-app .border-border { border-color:#e1e8f2; }
+.sentinel-app .hover\:bg-accent\/50:hover { background-color:#edf3ff; }
+.sentinel-app .animate-float { animation:float 7s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
