@@ -375,53 +375,77 @@ class FIMHandler(FileSystemEventHandler):
             
         except Exception as e:
             pass
-        if len(self.event_history) > 30 and not self.heuristic_triggered:
-            # HEURISTIC TRIGGERED
-            print(f"[FIM] 🚨 RANSOMWARE BEHAVIOR DETECTED! (Mass File Mods: {len(self.event_history)}/3s)")
-            self.heuristic_triggered = True
-            
-            alert = {
-                "message": f"Ransomware Detected: Mass file modification in {os.path.dirname(path)}",
-                "level": "critical",
-                "severity": "high",
-                "source": "EDR FIM",
-                "type": "Ransomware",
-                "timestamp": datetime.utcnow().isoformat(),
-                "path": path
-            }
-            
-            # Thread-safe publish
-            if self.loop:
-                asyncio.run_coroutine_threadsafe(
-                    self._publish(alert),
-                    self.loop
-                )
-            
-            # Reset heuristic after a cooldown (simulate cooldown by not clearing immediately or just boolean)
-            # We leave it True to avoid spamming 1000 alerts. Ideally reset after 10s.
-        
-        # Publish individual low-level events only if needed? 
-        # For now, just logging print is enough to keep bus clean, or send DEBUG event.
+
 
 
 class FileIntegrityMonitor:
+    """Watch selected paths and compare critical files with a SHA-256 baseline."""
+
+    CRITICAL_EXTENSIONS = {".exe", ".dll", ".sys", ".ps1", ".bat", ".cmd", ".vbs"}
+
     def __init__(self, bus: EventBus):
         self.bus = bus
         self.observer = Observer()
-        self.monitored_paths = [
-            # In production: "C:\\Windows\\System32\\drivers\\etc",
-            os.path.abspath("."), # Monitor current project dir for demo
-        ]
-        
+        self.baseline_hashes = {}
+        if os.name == "nt":
+            self.monitored_paths = [
+                r"C:\\Windows\\System32\\drivers\\etc",
+                os.path.expandvars(r"%ProgramData%"),
+            ]
+        else:
+            self.monitored_paths = [os.path.abspath(".")]
+
+    def _file_hash(self, filepath: str):
+        try:
+            digest = hashlib.sha256()
+            with open(filepath, "rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return digest.hexdigest()
+        except (OSError, PermissionError):
+            return None
+
+    def verify_file_integrity(self, filepath: str):
+        """Compare a file to its initial hash; return None when unreadable."""
+        current_hash = self._file_hash(filepath)
+        if current_hash is None:
+            return None
+        baseline_hash = self.baseline_hashes.get(filepath)
+        if baseline_hash is None:
+            self.baseline_hashes[filepath] = current_hash
+            return {"modified": False, "baseline_created": True}
+        changed = current_hash != baseline_hash
+        if changed:
+            self.baseline_hashes[filepath] = current_hash
+        return {
+            "modified": changed,
+            "baseline_hash": baseline_hash,
+            "current_hash": current_hash,
+        }
+
     def start(self):
         handler = FIMHandler(self.bus)
         for path in self.monitored_paths:
-            if os.path.exists(path):
-                self.observer.schedule(handler, path, recursive=True)
-                print(f"[FIM] Monitoring: {path}")
-        
-        self.observer.start()
-        
+            if not os.path.isdir(path):
+                continue
+            # Establish a baseline before watching, so the first edit to an
+            # existing critical file can be detected.
+            for root, dirs, files in os.walk(path):
+                dirs[:] = [name for name in dirs if name not in {
+                    ".git", "__pycache__", "node_modules", ".venv"
+                }]
+                for filename in files:
+                    if os.path.splitext(filename)[1].lower() in self.CRITICAL_EXTENSIONS:
+                        filepath = os.path.join(root, filename)
+                        digest = self._file_hash(filepath)
+                        if digest:
+                            self.baseline_hashes[filepath] = digest
+            self.observer.schedule(handler, path, recursive=True)
+            print(f"[FIM] Monitoring: {path}")
+        if self.observer.emitters:
+            self.observer.start()
+
     def stop(self):
-        self.observer.stop()
-        self.observer.join()
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
