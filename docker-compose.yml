@@ -1,101 +1,75 @@
 services:
   redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     networks:
       - sentinel_net
 
   timescaledb:
     image: timescale/timescaledb:latest-pg14
-    ports:
-      - "5432:5432"
+    restart: unless-stopped
     environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=admin
-      - POSTGRES_DB=sentinel_logs
-    networks:
-      - sentinel_net
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
+      POSTGRES_DB: sentinel_logs
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d sentinel_logs"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - sentinel_net
 
   c2_core:
-    build: .
-    command: python main.py
-    cap_add:
-      - NET_ADMIN
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: ["python", "main.py"]
+    restart: unless-stopped
     volumes:
       - ./c2_core:/app
+    environment:
+      REDIS_HOST: redis
+      POSTGRES_HOST: timescaledb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
+      POSTGRES_DB: sentinel_logs
+      ROLE: c2
+      PYTHONUNBUFFERED: "1"
     ports:
-      - "8000:8000" # API
-      - "8765:8765" # WebSocket C2
-    environment:
-      - REDIS_HOST=redis
-      - ROLE=c2
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8765:8765"
     depends_on:
-      - redis
-      - timescaledb
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
     networks:
       - sentinel_net
 
-  siem_vault:
-    build: .
-    command: python verify_siem_integrity.py
+  dashboard:
+    image: node:20-alpine
+    working_dir: /app
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0"]
+    restart: unless-stopped
     volumes:
-      - ./siem_vault:/app
-    environment:
-      - REDIS_HOST=redis
-      - ROLE=siem
+      - ./c2_core/UI:/app
+      - dashboard_node_modules:/app/node_modules
+    ports:
+      - "127.0.0.1:8080:8080"
     depends_on:
-      - redis
-    networks:
-      - sentinel_net
-
-  soar_engine:
-    build: .
-    command: python verify_adaptive_soar.py
-    volumes:
-      - ./soar_engine:/app
-    environment:
-      - REDIS_HOST=redis
-      - ROLE=soar
-    depends_on:
-      - redis
-    networks:
-      - sentinel_net
-
-  ai_brain:
-    build: .
-    command: python verify_prediction.py
-    volumes:
-      - ./ai_brain:/app
-    environment:
-      - REDIS_HOST=redis
-      - ROLE=ai
-    depends_on:
-      - redis
-    networks:
-      - sentinel_net
-  
-  db_archiver:
-    build: .
-    command: python db_archiver/main.py
-    volumes:
-      - ./db_archiver:/app/db_archiver
-      # We map the root so modules like models.py (if inside db_archiver) are found roughly.
-      # Wait, previous plan had db_archiver as a folder.
-      # Let's ensure the build context is correct. If build: . refers to root, then mapping should be ./db_archiver:/app/db_archiver likely.
-      # However, looking at main.py, it imports `models`.
-      # I will stick to mapping the folder.
-    environment:
-      - REDIS_HOST=redis
-      - POSTGRES_HOST=timescaledb
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=sentinel_logs
-    depends_on:
-      - redis
-      - timescaledb
+      - c2_core
     networks:
       - sentinel_net
 
@@ -104,4 +78,6 @@ networks:
     driver: bridge
 
 volumes:
+  redis_data:
   postgres_data:
+  dashboard_node_modules:
