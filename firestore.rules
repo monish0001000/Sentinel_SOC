@@ -143,7 +143,7 @@ service cloud.firestore {
           allow read: if isOwner(uid) || isEnrolledAgent(uid, endpointId);
           allow create, update: if isOwner(uid)
             && request.resource.data.targetEndpointId == endpointId
-            && request.resource.data.action in ['block_ip', 'unblock_ip', 'enable_rule', 'disable_rule', 'query_status']
+            && request.resource.data.action in ['block_ip', 'unblock_ip', 'enable_rule', 'disable_rule', 'query_status', 'sync_now', 'unenroll_agent']
             && request.resource.data.createdBy == uid
             && request.resource.data.expiresAt is timestamp
             && request.resource.data.approved == true;

@@ -121,8 +121,15 @@ public sealed class AgentWorker : BackgroundService
                         var syncState = pending == 0 ? AgentSyncStates.Synced : AgentSyncStates.Syncing;
                         await firebase.UploadHeartbeatAsync(identity, idToken, snapshot, pending, syncState, stoppingToken);
 
-                        // 3. Poll & evaluate desired firewall policies
-                        await PollAndApplyPoliciesAsync(firebase, firewallManager, identity, idToken, queueStore, stoppingToken);
+                        // 3. Poll & evaluate desired firewall / control policies
+                        var unenrollRequested = await PollAndApplyPoliciesAsync(
+                            firebase, firewallManager, telemetryCollector, identityStore,
+                            identity, idToken, queueStore, config, stoppingToken);
+                        if (unenrollRequested)
+                        {
+                            _logger.LogInformation("Remote unenroll executed cleanly; stopping SentinelSOCAgent loop.");
+                            break;
+                        }
 
                         backoff.RecordSuccess();
                         nextSyncAllowedAt = DateTimeOffset.MinValue;
@@ -254,12 +261,15 @@ public sealed class AgentWorker : BackgroundService
         }
     }
 
-    private async Task PollAndApplyPoliciesAsync(
+    private async Task<bool> PollAndApplyPoliciesAsync(
         FirebaseClient firebase,
         SafeFirewallManager firewallManager,
+        SystemTelemetryCollector telemetryCollector,
+        DpapiIdentityStore identityStore,
         AgentIdentity identity,
         string idToken,
         DurableQueueStore queueStore,
+        AgentConfig config,
         CancellationToken ct)
     {
         var policies = await firebase.FetchPoliciesAsync(identity, idToken, ct);
@@ -267,18 +277,88 @@ public sealed class AgentWorker : BackgroundService
         {
             if (_processedPolicies.Contains(policy.PolicyId)) continue;
 
-            var ack = await firewallManager.ExecutePolicyAsync(policy, identity.EndpointId, ct);
+            if (policy.Action is "sync_now" or "unenroll_agent")
+            {
+                var (valid, reason) = firewallManager.ValidatePolicy(policy, identity.EndpointId);
+                PolicyAck ack;
+                var shouldUnenroll = false;
+
+                if (!valid)
+                {
+                    var state = policy.ExpiresAt <= DateTimeOffset.UtcNow ? "expired" : "rejected";
+                    ack = new PolicyAck
+                    {
+                        AckId = $"{policy.PolicyId}_{state}",
+                        PolicyId = policy.PolicyId,
+                        EndpointId = identity.EndpointId,
+                        State = state,
+                        Message = reason,
+                        AcknowledgedAt = DateTimeOffset.UtcNow
+                    };
+                }
+                else if (policy.Action == "sync_now")
+                {
+                    var fresh = telemetryCollector.Collect(identity.EndpointId, includeConnections: true);
+                    await firebase.UploadHeartbeatAsync(identity, idToken, fresh, queueStore.GetPendingCount(), AgentSyncStates.Synced, ct);
+                    await firebase.UploadTelemetrySampleAsync(identity, idToken, fresh, ct);
+                    ack = new PolicyAck
+                    {
+                        AckId = $"{policy.PolicyId}_applied",
+                        PolicyId = policy.PolicyId,
+                        EndpointId = identity.EndpointId,
+                        State = "applied",
+                        Message = $"Telemetry synced: CPU {fresh.CpuPercent:F1}%, RAM {fresh.MemoryPercent:F1}%, {fresh.ActiveConnections.Count} TCP sockets.",
+                        AcknowledgedAt = DateTimeOffset.UtcNow
+                    };
+                }
+                else
+                {
+                    shouldUnenroll = true;
+                    ack = new PolicyAck
+                    {
+                        AckId = $"{policy.PolicyId}_applied",
+                        PolicyId = policy.PolicyId,
+                        EndpointId = identity.EndpointId,
+                        State = "applied",
+                        Message = "Remote unenroll acknowledged. Local DPAPI identity wiped; agent stopped.",
+                        AcknowledgedAt = DateTimeOffset.UtcNow
+                    };
+                }
+
+                _processedPolicies.Add(policy.PolicyId);
+                try
+                {
+                    await firebase.UploadPolicyAckAsync(identity, idToken, ack, ct);
+                }
+                catch
+                {
+                    queueStore.Enqueue(QueueItemType.PolicyAck, ack.AckId, JsonSerializer.Serialize(ack));
+                }
+
+                if (shouldUnenroll)
+                {
+                    var identityFile = Path.Combine(_dataDir, "identity.dpapi");
+                    if (File.Exists(identityFile)) File.Delete(identityFile);
+                    config.EnrollmentToken = null;
+                    SaveConfig(config);
+                    return true;
+                }
+                continue;
+            }
+
+            var fwAck = await firewallManager.ExecutePolicyAsync(policy, identity.EndpointId, ct);
             _processedPolicies.Add(policy.PolicyId);
 
             try
             {
-                await firebase.UploadPolicyAckAsync(identity, idToken, ack, ct);
+                await firebase.UploadPolicyAckAsync(identity, idToken, fwAck, ct);
             }
             catch
             {
-                queueStore.Enqueue(QueueItemType.PolicyAck, ack.AckId, JsonSerializer.Serialize(ack));
+                queueStore.Enqueue(QueueItemType.PolicyAck, fwAck.AckId, JsonSerializer.Serialize(fwAck));
             }
         }
+        return false;
     }
 
     private AgentConfig? LoadConfig()

@@ -69,6 +69,26 @@ public sealed class FirewallAndBackoffTests
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10)
         };
         Assert.False(mgr.ValidatePolicy(arbitraryShell, "ep-1").Valid);
+
+        var syncNow = new FirewallPolicy
+        {
+            PolicyId = "pol-4",
+            TargetEndpointId = "ep-1",
+            Action = "sync_now",
+            Approved = true,
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10)
+        };
+        Assert.True(disabledMgr.ValidatePolicy(syncNow, "ep-1").Valid);
+
+        var unenroll = new FirewallPolicy
+        {
+            PolicyId = "pol-5",
+            TargetEndpointId = "ep-1",
+            Action = "unenroll_agent",
+            Approved = true,
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10)
+        };
+        Assert.True(disabledMgr.ValidatePolicy(unenroll, "ep-1").Valid);
     }
 
     [Fact]

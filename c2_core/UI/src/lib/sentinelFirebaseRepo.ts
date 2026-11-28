@@ -1,12 +1,15 @@
 import {
   collection,
+  deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
   Timestamp,
   limit,
   Unsubscribe,
@@ -18,6 +21,7 @@ export type EndpointComputedStatus =
   | "online"
   | "stale"
   | "offline"
+  | "revoked"
   | "error";
 
 export interface EndpointConnectionRecord {
@@ -100,8 +104,12 @@ export interface FirewallPolicyAck {
 export function deriveEndpointStatus(
   lastSeenAt: Date | null | undefined,
   healthState?: string,
-  hasMetrics = false
+  hasMetrics = false,
+  revoked = false
 ): EndpointComputedStatus {
+  if (revoked) {
+    return "revoked";
+  }
   if (healthState === "auth_failure" || healthState === "unhealthy" || healthState === "error") {
     return "error";
   }
@@ -180,7 +188,12 @@ export function subscribeEndpoints(
           agentIntegrityHash: data.agentIntegrityHash,
           lastSeenAt,
           uptimeSeconds: data.uptimeSeconds,
-          computedStatus: deriveEndpointStatus(lastSeenAt, data.healthState, Boolean(data.latestMetrics)),
+          computedStatus: deriveEndpointStatus(
+            lastSeenAt,
+            data.healthState,
+            Boolean(data.latestMetrics),
+            Boolean(data.revoked)
+          ),
           syncState: data.syncState || "unknown",
           pendingQueueCount: data.pendingQueueCount ?? 0,
           firewallEnabled: data.firewallEnabled,
@@ -244,7 +257,7 @@ export function subscribeEndpointAlerts(
 export async function createSafeFirewallPolicy(params: {
   ownerUid: string;
   endpointId: string;
-  action: "block_ip" | "unblock_ip" | "query_status";
+  action: "block_ip" | "unblock_ip" | "query_status" | "sync_now" | "unenroll_agent";
   targetIp?: string;
   reason: string;
   ttlMinutes?: number;
@@ -282,6 +295,68 @@ export async function createSafeFirewallPolicy(params: {
   });
 
   return policyId;
+}
+
+export async function setEndpointRevoked(
+  ownerUid: string,
+  endpointId: string,
+  revoked: boolean
+): Promise<void> {
+  if (!db) {
+    throw new Error("Firebase Firestore is not configured.");
+  }
+  await updateDoc(doc(db, "users", ownerUid, "endpoints", endpointId), { revoked });
+
+  const auditId = `aud_${revoked ? "revoke" : "resume"}_${Date.now()}_${generateRandomToken(3)}`;
+  await setDoc(doc(db, "users", ownerUid, "audit", auditId), {
+    actorUid: ownerUid,
+    targetEndpointId: endpointId,
+    action: revoked ? "revoke_endpoint" : "resume_endpoint",
+    targetIp: null,
+    reason: revoked
+      ? "Owner paused/revoked agent access from EDR console"
+      : "Owner resumed agent access from EDR console",
+    createdAt: serverTimestamp(),
+  });
+}
+
+async function deleteSubcollectionDocs(ownerUid: string, endpointId: string, subcollection: string) {
+  if (!db) return;
+  const colRef = collection(db, "users", ownerUid, "endpoints", endpointId, subcollection);
+  const snap = await getDocs(colRef);
+  if (snap.empty) return;
+
+  for (let i = 0; i < snap.docs.length; i += 350) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + 350).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+}
+
+export async function removeEndpointCompletely(
+  ownerUid: string,
+  endpointId: string,
+  hostname: string
+): Promise<void> {
+  if (!db) {
+    throw new Error("Firebase Firestore is not configured.");
+  }
+
+  for (const sub of ["alerts", "telemetry", "policies", "policyAcks"]) {
+    await deleteSubcollectionDocs(ownerUid, endpointId, sub);
+  }
+
+  await deleteDoc(doc(db, "users", ownerUid, "endpoints", endpointId));
+
+  const auditId = `aud_remove_${Date.now()}_${generateRandomToken(3)}`;
+  await setDoc(doc(db, "users", ownerUid, "audit", auditId), {
+    actorUid: ownerUid,
+    targetEndpointId: endpointId,
+    action: "remove_endpoint",
+    targetIp: null,
+    reason: `Removed endpoint ${hostname} (${endpointId.slice(0, 12)}) and its subcollections from console`,
+    createdAt: serverTimestamp(),
+  });
 }
 
 export interface AuditLogRecord {

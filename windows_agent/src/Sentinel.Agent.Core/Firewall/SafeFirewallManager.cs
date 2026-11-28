@@ -19,7 +19,15 @@ public sealed partial class SafeFirewallManager
         "unblock_ip",
         "enable_rule",
         "disable_rule",
-        "query_status"
+        "query_status",
+        "sync_now",
+        "unenroll_agent"
+    };
+
+    private static readonly HashSet<string> LifecycleOrTelemetryActions = new(StringComparer.Ordinal)
+    {
+        "sync_now",
+        "unenroll_agent"
     };
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$")]
@@ -33,9 +41,6 @@ public sealed partial class SafeFirewallManager
 
     public (bool Valid, string Reason) ValidatePolicy(FirewallPolicy policy, string currentEndpointId)
     {
-        if (!_config.EnableRemoteFirewallControl)
-            return (false, "Remote firewall control is disabled in agent configuration.");
-
         if (!policy.Approved)
             return (false, "Policy is not approved.");
 
@@ -47,6 +52,9 @@ public sealed partial class SafeFirewallManager
 
         if (!AllowedActions.Contains(policy.Action))
             return (false, $"Action '{policy.Action}' is not in the strict allowlist.");
+
+        if (!LifecycleOrTelemetryActions.Contains(policy.Action) && !_config.EnableRemoteFirewallControl)
+            return (false, "Remote firewall control is disabled in agent configuration.");
 
         if (policy.Action is "block_ip" or "unblock_ip")
         {
