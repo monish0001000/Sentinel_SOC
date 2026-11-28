@@ -32,6 +32,7 @@ const navItems = [
   { path: "/dashboard/policies", icon: Shield, label: "Policy Engine" },
   { path: "/dashboard/forensics", icon: ScrollText, label: "Forensics" },
   { path: "/dashboard/nodes", icon: Server, label: "Endpoints" },
+  { path: "/dashboard/connect-endpoint", icon: Activity, label: "Connect Endpoint" },
   { path: "/dashboard/settings", icon: Settings, label: "Settings" },
 ];
 

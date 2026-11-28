@@ -14,12 +14,11 @@ import {
 import { db } from "./firebase";
 
 export type EndpointComputedStatus =
+  | "enrolled"
   | "online"
-  | "reconnecting"
+  | "stale"
   | "offline"
-  | "never_connected"
-  | "auth_failure"
-  | "unhealthy";
+  | "error";
 
 export interface EndpointRecord {
   id: string;
@@ -75,15 +74,17 @@ export interface FirewallPolicyAck {
 
 export function deriveEndpointStatus(
   lastSeenAt: Date | null | undefined,
-  healthState?: string
+  healthState?: string,
+  hasMetrics = false
 ): EndpointComputedStatus {
-  if (healthState === "auth_failure") return "auth_failure";
-  if (healthState === "unhealthy") return "unhealthy";
-  if (!lastSeenAt) return "never_connected";
+  if (healthState === "auth_failure" || healthState === "unhealthy" || healthState === "error") {
+    return "error";
+  }
+  if (!lastSeenAt || !hasMetrics) return "enrolled";
 
   const ageSeconds = (Date.now() - lastSeenAt.getTime()) / 1000;
   if (ageSeconds <= 120) return "online";
-  if (ageSeconds <= 300) return "reconnecting";
+  if (ageSeconds <= 300) return "stale";
   return "offline";
 }
 
@@ -152,7 +153,7 @@ export function subscribeEndpoints(
           agentIntegrityHash: data.agentIntegrityHash,
           lastSeenAt,
           uptimeSeconds: data.uptimeSeconds,
-          computedStatus: deriveEndpointStatus(lastSeenAt, data.healthState),
+          computedStatus: deriveEndpointStatus(lastSeenAt, data.healthState, Boolean(data.latestMetrics)),
           syncState: data.syncState || "unknown",
           pendingQueueCount: data.pendingQueueCount ?? 0,
           firewallEnabled: data.firewallEnabled,

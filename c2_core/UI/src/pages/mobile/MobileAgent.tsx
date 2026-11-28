@@ -69,8 +69,8 @@ const MobileAgent = () => {
             ← Back to Home
           </Link>
           <Button asChild size="sm">
-            <Link to="/dashboard/nodes" className="gap-2">
-              Open Endpoints Console
+            <Link to="/dashboard/connect-endpoint" className="gap-2">
+              Connect Windows Endpoint
               <ArrowRight className="w-4 h-4" />
             </Link>
           </Button>

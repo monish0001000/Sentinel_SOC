@@ -36,7 +36,7 @@ public static class InstallEngine
         }
     }
 
-    public static void InstallOrUpgrade(InstallOptions options, Action<string> log, bool isRepair = false)
+    public static string InstallOrUpgrade(InstallOptions options, Action<string> log, bool isRepair = false)
     {
         log($"Preparing installation directory: {options.InstallDir}");
         Directory.CreateDirectory(options.InstallDir);
@@ -107,7 +107,27 @@ public static class InstallEngine
 
         log("Starting SentinelSOCAgent service...");
         StartService(log);
-        log("Installation completed successfully.");
+
+        var identityPath = Path.Combine(options.DataDir, "identity.dpapi");
+        if (!File.Exists(identityPath))
+        {
+            log("Waiting briefly for initial Firebase enrollment & DPAPI identity...");
+            for (var i = 0; i < 6; i++)
+            {
+                if (File.Exists(identityPath)) break;
+                Thread.Sleep(1000);
+            }
+        }
+
+        var enrolled = File.Exists(identityPath);
+        if (enrolled)
+        {
+            log("Enrollment verified: DPAPI endpoint identity created.");
+            return "Installation successful. SentinelSOCAgent is running and enrolled with Firebase.";
+        }
+
+        log("Service started, awaiting Firebase connectivity or enrollment completion (check logs).");
+        return "Service installed and running, but enrollment is pending connectivity. Check C:\\ProgramData\\SentinelSOC\\logs.";
     }
 
     public static void Uninstall(InstallOptions options, Action<string> log)

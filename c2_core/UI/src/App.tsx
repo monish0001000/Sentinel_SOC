@@ -18,6 +18,7 @@ const AnalyticsPage = lazy(() => import("./pages/dashboard/AnalyticsPage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const FirewallPage = lazy(() => import("./pages/dashboard/FirewallPage"));
 const NodesPage = lazy(() => import("./pages/dashboard/NodesPage"));
+const ConnectEndpointPage = lazy(() => import("./pages/dashboard/ConnectEndpointPage"));
 const ForensicsPage = lazy(() => import("./pages/dashboard/ForensicsPage"));
 const TrafficPage = lazy(() => import("./pages/dashboard/TrafficPage"));
 const AIAnalystPage = lazy(() => import("./pages/dashboard/AIAnalystPage"));
@@ -57,6 +58,7 @@ const App = () => (
                   <Route path="policies" element={<PoliciesPage />} />
                   <Route path="forensics" element={<ForensicsPage />} />
                   <Route path="nodes" element={<NodesPage />} />
+                  <Route path="connect-endpoint" element={<ConnectEndpointPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Route>

@@ -31,12 +31,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_BADGE: Record<EndpointComputedStatus, { label: string; cls: string }> = {
+  enrolled: { label: "ENROLLED", cls: "bg-primary/15 text-primary border-primary/30" },
   online: { label: "ONLINE", cls: "bg-success/15 text-success border-success/30" },
-  reconnecting: { label: "RECONNECTING", cls: "bg-warning/15 text-warning border-warning/30" },
+  stale: { label: "STALE", cls: "bg-warning/15 text-warning border-warning/30" },
   offline: { label: "OFFLINE", cls: "bg-muted text-muted-foreground border-border" },
-  never_connected: { label: "NEVER CONNECTED", cls: "bg-muted text-muted-foreground border-border" },
-  auth_failure: { label: "AUTH FAILURE", cls: "bg-destructive/15 text-destructive border-destructive/30" },
-  unhealthy: { label: "UNHEALTHY", cls: "bg-threat-high/15 text-threat-high border-threat-high/30" },
+  error: { label: "ERROR", cls: "bg-destructive/15 text-destructive border-destructive/30" },
 };
 
 const NodesPage = () => {

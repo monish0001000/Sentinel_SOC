@@ -4,13 +4,20 @@ on:
   push:
     branches:
       - feature/firebase-web-edr-mvp
+    tags:
+      - "v*"
     paths:
       - "windows_agent/**"
       - ".github/workflows/windows-agent-build.yml"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag (e.g. v1.0.0) to publish a GitHub Release"
+        required: false
+        default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: sentinel-windows-agent-${{ github.ref }}
@@ -91,3 +98,15 @@ jobs:
             windows_agent/**/bin/Release/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          name: Sentinel Windows Endpoint Agent ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/package/SentinelAgentSetup.exe
+            artifacts/package/SHA256SUMS.txt
+            artifacts/SentinelAgent-Windows-x64.zip

@@ -186,7 +186,7 @@ public sealed class AgentWorker : BackgroundService
         {
             try
             {
-                var enrolled = await firebase.EnrollEndpointAsync(endpointId, config.EnrollmentToken, snap.OsVersion, snap.AgentVersion, ct);
+                var enrolled = await firebase.EnrollEndpointAsync(endpointId, config.EnrollmentToken!, snap.OsVersion, snap.AgentVersion, ct);
                 identityStore.Save(enrolled);
 
                 // Scrub one-time enrollment token from config.json after successful claim
