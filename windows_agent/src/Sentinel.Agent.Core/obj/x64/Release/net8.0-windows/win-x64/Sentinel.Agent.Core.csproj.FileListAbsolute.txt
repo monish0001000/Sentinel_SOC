@@ -1,6 +1,0 @@
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.csproj.AssemblyReference.cache
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.GeneratedMSBuildEditorConfig.editorconfig
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.AssemblyInfoInputs.cache
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.AssemblyInfo.cs
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.csproj.CoreCompileInputs.cache
-D:\project\Sentinel\Sentinel_level8\Sentinel_Level8_Enterprise\Sentinel_SOC_mvp\windows_agent\src\Sentinel.Agent.Core\obj\x64\Release\net8.0-windows\win-x64\Sentinel.Agent.Core.sourcelink.json

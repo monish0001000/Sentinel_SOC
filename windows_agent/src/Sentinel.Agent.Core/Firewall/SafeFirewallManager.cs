@@ -50,7 +50,9 @@ public sealed partial class SafeFirewallManager
 
         if (policy.Action is "block_ip" or "unblock_ip")
         {
-            if (string.IsNullOrWhiteSpace(policy.TargetIp) || !IsAllowedTargetIp(policy.TargetIp, _config.AllowLabPrivateIpExceptions, out var ipReason))
+            if (string.IsNullOrWhiteSpace(policy.TargetIp))
+                return (false, "Target IP is required.");
+            if (!IsAllowedTargetIp(policy.TargetIp, _config.AllowLabPrivateIpExceptions, out var ipReason))
                 return (false, ipReason);
         }
 
