@@ -3,19 +3,27 @@ import { cn } from "@/lib/utils";
 
 interface RiskScoreGaugeProps {
   score: number;
+  hasData?: boolean;
   className?: string;
 }
 
-export const RiskScoreGauge = ({ score, className }: RiskScoreGaugeProps) => {
-  const getScoreLevel = (score: number) => {
-    if (score >= 75) return { label: "CRITICAL", color: "text-destructive", bg: "bg-destructive" };
-    if (score >= 50) return { label: "HIGH", color: "text-threat-high", bg: "bg-threat-high" };
-    if (score >= 25) return { label: "MEDIUM", color: "text-warning", bg: "bg-warning" };
+export const RiskScoreGauge = ({
+  score,
+  hasData = true,
+  className,
+}: RiskScoreGaugeProps) => {
+  const getScoreLevel = (value: number) => {
+    if (!hasData) {
+      return { label: "NO DATA", color: "text-muted-foreground", bg: "bg-muted-foreground/40" };
+    }
+    if (value >= 75) return { label: "CRITICAL", color: "text-destructive", bg: "bg-destructive" };
+    if (value >= 50) return { label: "HIGH", color: "text-threat-high", bg: "bg-threat-high" };
+    if (value >= 25) return { label: "MEDIUM", color: "text-warning", bg: "bg-warning" };
     return { label: "LOW", color: "text-success", bg: "bg-success" };
   };
 
   const level = getScoreLevel(score);
-  const percentage = Math.min(100, Math.max(0, score));
+  const percentage = hasData ? Math.min(100, Math.max(0, score)) : 0;
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
@@ -25,19 +33,19 @@ export const RiskScoreGauge = ({ score, className }: RiskScoreGaugeProps) => {
         </span>
         <div className="flex items-baseline gap-1">
           <motion.span
-            key={score}
+            key={hasData ? score : "no-data"}
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             className={cn("text-lg font-bold font-mono", level.color)}
           >
-            {score}
+            {hasData ? score : "—"}
           </motion.span>
-          <span className="text-xs text-muted-foreground">/100</span>
+          {hasData && <span className="text-xs text-muted-foreground">/100</span>}
         </div>
       </div>
-      
+
       <div className="flex flex-col gap-1">
-        <div className="w-24 h-2 bg-muted/30 rounded-full overflow-hidden">
+        <div className="w-24 h-2 bg-muted/40 rounded-full overflow-hidden">
           <motion.div
             className={cn("h-full rounded-full", level.bg)}
             initial={{ width: 0 }}

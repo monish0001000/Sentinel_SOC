@@ -14,21 +14,27 @@ const ThreatsPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Threat Detection</h1>
-          <p className="text-muted-foreground">Active threats and security incidents</p>
+          <p className="text-muted-foreground text-sm">
+            Active security incidents reported by connected detection sources
+          </p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/30">
-          <Zap className={connectionStatus === "connected" ? "w-4 h-4 text-success live-pulse" : "w-4 h-4 text-muted-foreground"} />
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/40 border border-border/50 self-start">
+          <Zap
+            className={
+              connectionStatus === "connected"
+                ? "w-4 h-4 text-success live-pulse"
+                : "w-4 h-4 text-muted-foreground"
+            }
+          />
           <span className="text-xs font-mono text-muted-foreground">
-            {connectionStatus === "connected" ? "LIVE DETECTION" : "OFFLINE"}
+            {connectionStatus === "connected" ? "LIVE DETECTION" : "STREAM OFFLINE"}
           </span>
         </div>
       </div>
 
-      {/* Threat Summary */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -64,24 +70,35 @@ const ThreatsPage = () => {
         </div>
       </motion.div>
 
-      {/* Threat List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Active Threats</h2>
+          <h2 className="text-lg font-semibold text-foreground">Reported Threats</h2>
           <span className="text-xs font-mono text-muted-foreground">
             {threats.length} detected
           </span>
         </div>
         <div className="grid gap-4">
           {threats.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground glass-card rounded-lg border border-border/30">
-              <Shield className="w-12 h-12 mx-auto mb-4 text-success/50" />
-              <p className="font-mono text-sm">No active threats detected</p>
-              <p className="text-xs mt-1">System is secure</p>
+            <div className="text-center py-12 text-muted-foreground glass-card rounded-xl border border-border/50 px-6">
+              <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p className="font-mono text-sm text-foreground">
+                {connectionStatus === "connected"
+                  ? "No active threats reported"
+                  : "No live threat stream connected"}
+              </p>
+              <p className="text-xs mt-1">
+                {connectionStatus === "connected"
+                  ? "Events reported by the connected source will appear here."
+                  : "Check Endpoints (EDR) for per-endpoint alerts stored in Firestore."}
+              </p>
             </div>
           ) : (
             threats.map((threat, index) => (
-              <ThreatCard key={threat.id} threat={threat} index={index} />
+              <ThreatCard
+                key={threat.id || `threat-${index}`}
+                threat={threat}
+                index={index}
+              />
             ))
           )}
         </div>

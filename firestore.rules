@@ -1,0 +1,172 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function endpointDoc(uid, endpointId) {
+      return get(/databases/$(database)/documents/users/$(uid)/endpoints/$(endpointId));
+    }
+
+    function isEnrolledAgent(uid, endpointId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(uid)/endpoints/$(endpointId))
+        && endpointDoc(uid, endpointId).data.agentUid == request.auth.uid
+        && endpointDoc(uid, endpointId).data.revoked != true;
+    }
+
+    // One-time endpoint enrollment tokens (document ID = SHA-256 hex of pairing token)
+    match /enrollments/{tokenHash} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'ownerUid', 'createdAt', 'expiresAt', 'used',
+          'claimedByAgentUid', 'claimedEndpointId', 'label'
+        ])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.used == false
+        && request.resource.data.claimedByAgentUid == null
+        && request.resource.data.claimedEndpointId == null
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && (!('label' in request.resource.data) || (request.resource.data.label is string && request.resource.data.label.size() <= 128));
+
+      // Atomic single-use claim by the enrolling agent
+      allow update: if isSignedIn()
+        && resource.data.used == false
+        && request.time < resource.data.expiresAt
+        && request.resource.data.used == true
+        && request.resource.data.claimedByAgentUid == request.auth.uid
+        && request.resource.data.claimedEndpointId is string
+        && request.resource.data.claimedEndpointId.size() >= 16
+        && request.resource.data.claimedEndpointId.size() <= 128
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.expiresAt == resource.data.expiresAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'used', 'claimedByAgentUid', 'claimedEndpointId'
+        ]);
+
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Tenant user root
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Endpoint inventory & latest heartbeat/metrics
+      match /endpoints/{endpointId} {
+        allow read: if isOwner(uid) || isEnrolledAgent(uid, endpointId);
+
+        allow create: if isOwner(uid)
+          || (isSignedIn()
+            && request.resource.data.agentUid == request.auth.uid
+            && request.resource.data.ownerUid == uid
+            && request.resource.data.endpointId == endpointId
+            && request.resource.data.enrollmentTokenHash is string
+            && exists(/databases/$(database)/documents/enrollments/$(request.resource.data.enrollmentTokenHash))
+            && get(/databases/$(database)/documents/enrollments/$(request.resource.data.enrollmentTokenHash)).data.used == true
+            && get(/databases/$(database)/documents/enrollments/$(request.resource.data.enrollmentTokenHash)).data.ownerUid == uid
+            && get(/databases/$(database)/documents/enrollments/$(request.resource.data.enrollmentTokenHash)).data.claimedByAgentUid == request.auth.uid
+            && get(/databases/$(database)/documents/enrollments/$(request.resource.data.enrollmentTokenHash)).data.claimedEndpointId == endpointId
+            && request.resource.data.hostname is string
+            && request.resource.data.hostname.size() <= 255
+            && request.resource.data.osVersion is string
+            && request.resource.data.agentVersion is string
+            && request.resource.data.revoked == false);
+
+        // Agent can only update its own heartbeat, metrics, status, osVersion, agentVersion, syncState
+        allow update: if isOwner(uid)
+          || (isEnrolledAgent(uid, endpointId)
+            && request.resource.data.agentUid == resource.data.agentUid
+            && request.resource.data.ownerUid == resource.data.ownerUid
+            && request.resource.data.endpointId == resource.data.endpointId
+            && request.resource.data.revoked == resource.data.revoked
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'hostname', 'osVersion', 'osBuild', 'agentVersion',
+              'lastSeenAt', 'uptimeSeconds', 'status', 'healthState',
+              'syncState', 'pendingQueueCount', 'latestMetrics',
+              'networkInterfaces', 'firewallEnabled', 'agentIntegrityHash'
+            ])
+            && request.resource.data.lastSeenAt is timestamp);
+
+        allow delete: if isOwner(uid);
+
+        // Idempotent historical telemetry samples (create-only by agent)
+        match /telemetry/{sampleId} {
+          allow read: if isOwner(uid);
+          allow create: if isEnrolledAgent(uid, endpointId)
+            && request.resource.data.endpointId == endpointId
+            && request.resource.data.idempotencyKey == sampleId
+            && request.resource.data.capturedAt is timestamp
+            && request.resource.data.cpuPercent is number
+            && request.resource.data.cpuPercent >= 0
+            && request.resource.data.cpuPercent <= 100
+            && request.resource.data.memoryPercent is number
+            && request.resource.data.memoryPercent >= 0
+            && request.resource.data.memoryPercent <= 100;
+          allow update, delete: if isOwner(uid);
+        }
+
+        // Idempotent evidence-backed alerts (create-only by agent)
+        match /alerts/{alertId} {
+          allow read: if isOwner(uid);
+          allow create: if isEnrolledAgent(uid, endpointId)
+            && request.resource.data.endpointId == endpointId
+            && request.resource.data.idempotencyKey == alertId
+            && request.resource.data.ruleId is string
+            && request.resource.data.ruleVersion is string
+            && request.resource.data.severity in ['low', 'medium', 'high', 'critical']
+            && request.resource.data.eventTime is timestamp
+            && request.resource.data.reason is string
+            && request.resource.data.reason.size() <= 1024
+            && request.resource.data.status == 'open';
+          allow update, delete: if isOwner(uid);
+        }
+
+        // Desired firewall policies (written ONLY by owner; read-only by agent)
+        match /policies/{policyId} {
+          allow read: if isOwner(uid) || isEnrolledAgent(uid, endpointId);
+          allow create, update: if isOwner(uid)
+            && request.resource.data.targetEndpointId == endpointId
+            && request.resource.data.action in ['block_ip', 'unblock_ip', 'enable_rule', 'disable_rule', 'query_status']
+            && request.resource.data.createdBy == uid
+            && request.resource.data.expiresAt is timestamp
+            && request.resource.data.approved == true;
+          allow delete: if isOwner(uid);
+        }
+
+        // Policy acknowledgements (create-only by agent)
+        match /policyAcks/{ackId} {
+          allow read: if isOwner(uid);
+          allow create: if isEnrolledAgent(uid, endpointId)
+            && request.resource.data.endpointId == endpointId
+            && request.resource.data.policyId is string
+            && request.resource.data.state in ['received', 'applied', 'rejected', 'expired', 'failed']
+            && request.resource.data.acknowledgedAt is timestamp;
+          allow update, delete: if isOwner(uid);
+        }
+      }
+
+      // Audit log (owner-only)
+      match /audit/{auditId} {
+        allow read, create: if isOwner(uid);
+        allow update, delete: if false;
+      }
+    }
+  }
+}

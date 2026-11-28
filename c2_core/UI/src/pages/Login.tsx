@@ -1,60 +1,65 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Lock, User, AlertTriangle, Eye, EyeOff } from "lucide-react";
+import { Shield, Lock, Mail, AlertTriangle, Eye, EyeOff, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CyberBackground } from "@/components/ui/CyberBackground";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isConfigured, signIn } = useAuth();
+
+  useEffect(() => {
+    if (isConfigured && user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isConfigured, user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
-    try {
-      const formData = new URLSearchParams();
-      formData.append('username', username);
-      formData.append('password', password);
-
-      // We are mapping email input to 'username' field of OAuth2 form
-      // Simplification: In auth.py we defined users by 'username' (admin, analyst). 
-      // The UI Input currently asks for "Email Address" but placeholder is analyst@...
-      // Let's assume the user types 'admin' or 'analyst' OR we handle the mapping.
-      // For this phase, let's just send the value of 'email' state as 'username'.
-
-      const res = await fetch("http://localhost:8000/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formData,
+    if (!isConfigured) {
+      toast({
+        title: "Authentication Unavailable",
+        description:
+          "Firebase Authentication is not configured in this hosted build. Set VITE_FIREBASE_* environment variables and rebuild to enable sign-in.",
+        variant: "destructive",
       });
+      return;
+    }
 
-      if (!res.ok) {
-        throw new Error("Invalid credentials");
-      }
+    if (!email.trim() || !password) {
+      toast({
+        title: "Missing Credentials",
+        description: "Enter both your email address and password.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      const data = await res.json();
-      localStorage.setItem("sentinel_token", data.access_token);
-      localStorage.setItem("sentinel_role", data.role);
-
+    setIsLoading(true);
+    try {
+      const signedInUser = await signIn(email.trim(), password);
       toast({
         title: "Access Granted",
-        description: `Welcome back, ${data.role.toUpperCase()}`,
+        description: `Signed in as ${signedInUser.email || signedInUser.uid}`,
       });
-      navigate("/dashboard");
-
-    } catch (err) {
+      navigate("/dashboard", { replace: true });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Invalid email or password.";
       toast({
         title: "Authentication Failed",
-        description: "Invalid username or password.",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -63,61 +68,77 @@ const Login = () => {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center px-6">
+    <div className="relative min-h-screen flex items-center justify-center px-6 py-10">
       <CyberBackground />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
         className="relative z-10 w-full max-w-md"
       >
-        {/* Login Card */}
-        <div className="cyber-border bg-card/80 backdrop-blur-xl rounded-lg p-8">
-          {/* Header */}
+        <div className="cyber-border bg-card/90 backdrop-blur-xl rounded-lg p-8">
           <div className="text-center mb-8">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
+              transition={{ delay: 0.15, type: "spring" }}
               className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4"
             >
               <Shield className="w-8 h-8 text-primary" />
             </motion.div>
             <h1 className="text-2xl font-bold text-foreground">Secure Access</h1>
             <p className="text-muted-foreground text-sm mt-2">
-              Enter your credentials to access the SOC dashboard
+              Sign in with your Sentinel Firebase operator account
             </p>
           </div>
 
-          {/* Security Notice */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex items-start gap-3 p-3 rounded-md bg-warning/10 border border-warning/20 mb-6"
-          >
-            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-warning/80">
-              This system is for authorized personnel only. All access attempts are monitored and logged.
-            </p>
-          </motion.div>
+          {!isConfigured ? (
+            <div className="flex items-start gap-3 p-3.5 rounded-md bg-destructive/10 border border-destructive/25 mb-6">
+              <Info className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground/85 space-y-1">
+                <p className="font-semibold text-destructive">
+                  Firebase Authentication Not Configured
+                </p>
+                <p className="text-muted-foreground leading-relaxed">
+                  This hosted build does not have{" "}
+                  <code className="font-mono">VITE_FIREBASE_*</code> configuration
+                  variables set, and legacy local FastAPI login is disabled on
+                  Firebase Hosting.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex items-start gap-3 p-3 rounded-md bg-warning/10 border border-warning/20 mb-6"
+            >
+              <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-foreground/80">
+                Authorized personnel only. Authentication is enforced via Firebase
+                Authentication.
+              </p>
+            </motion.div>
+          )}
 
-          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm text-muted-foreground">
-                Username
+              <Label htmlFor="email" className="text-sm text-muted-foreground">
+                Email Address
               </Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  id="username"
-                  type="text"
-                  placeholder="admin"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10 bg-background/50 border-border focus:border-primary focus:ring-primary/20"
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="analyst@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={!isConfigured || isLoading}
+                  className="pl-10 bg-background/60 border-border focus:border-primary focus:ring-primary/20"
                 />
               </div>
             </div>
@@ -131,14 +152,18 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10 bg-background/50 border-border focus:border-primary focus:ring-primary/20"
+                  disabled={!isConfigured || isLoading}
+                  className="pl-10 pr-10 bg-background/60 border-border focus:border-primary focus:ring-primary/20"
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={!isConfigured}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -148,8 +173,8 @@ const Login = () => {
 
             <Button
               type="submit"
-              className="w-full glow-cyan"
-              disabled={isLoading}
+              className="w-full"
+              disabled={!isConfigured || isLoading}
             >
               {isLoading ? (
                 <motion.div
@@ -158,13 +183,14 @@ const Login = () => {
                 >
                   <Shield className="w-4 h-4" />
                 </motion.div>
+              ) : isConfigured ? (
+                "Sign In with Firebase"
               ) : (
-                "Authenticate"
+                "Authentication Unavailable"
               )}
             </Button>
           </form>
 
-          {/* Footer */}
           <div className="mt-6 text-center">
             <Link
               to="/"
@@ -175,15 +201,20 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Connection Status */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.35 }}
           className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground"
         >
-          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          Secure connection established (TLS 1.3)
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isConfigured ? "bg-success animate-pulse" : "bg-warning"
+            }`}
+          />
+          {isConfigured
+            ? "Firebase Authentication configured"
+            : "Firebase Authentication not configured (hosted preview)"}
         </motion.div>
       </motion.div>
     </div>

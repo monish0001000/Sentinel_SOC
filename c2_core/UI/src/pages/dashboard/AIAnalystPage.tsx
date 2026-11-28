@@ -21,13 +21,13 @@ const quickActions = [
 ];
 
 const AIAnalystPage = () => {
-  const { alerts, metrics, stats, firewall } = useWebSocket();
+  const { alerts, metrics, stats, firewall, connected } = useWebSocket();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
       content:
-        "This page can summarize current dashboard data. No AI model is connected in this build, so it will not invent analysis or threat findings.",
+        "This page summarizes connected dashboard telemetry using deterministic rules. No LLM or AI inference backend is connected in this build.",
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -48,17 +48,19 @@ const AIAnalystPage = () => {
 
     if (lowerMsg.includes("threat") || lowerMsg.includes("alert") || lowerMsg.includes("suspicious")) {
       if (alerts.length === 0) {
-        responseContent = "There are no active alerts in the current dashboard feed. This does not prove the host is secure; it only means no alert is currently being reported.";
+        responseContent =
+          "There are no active alerts in the current session feed. This does not imply the host is secure; no alert events have been received.";
       } else {
-        const latest = alerts[alerts.length - 1];
-        responseContent = `Current dashboard alerts: **${alerts.length}**\\n\\nLatest alert: **[${latest.level || "unknown"}] ${latest.message || "No message provided"}**\\n\\nThis is a summary of received alert data, not an independent AI verdict.`;
+        const latest = alerts[alerts.length - 1] as { level?: string; severity?: string; message?: string; description?: string };
+        responseContent = `Current session alerts: ${alerts.length}\n\nLatest alert: [${latest.level || latest.severity || "unknown"}] ${latest.message || latest.description || "No message provided"}\n\nThis is a direct summary of received data, not an AI verdict.`;
       }
     } else if (lowerMsg.includes("status") || lowerMsg.includes("system")) {
-      responseContent = `**Live dashboard snapshot**\\n- WebSocket: ${metrics ? "connected data available" : "metrics not received"}\\n- Container network packets: ${metrics?.packet_rate ?? "not available"}/sec\\n- Active connections: ${metrics?.connections ?? "not available"}\\n- Connection events: ${stats?.totalPackets ?? "not available"}\\n- Current alerts: ${alerts.length}`;
+      responseContent = `Live stream snapshot\n- Stream status: ${connected ? "connected" : "not connected"}\n- Packet rate: ${metrics?.packet_rate ?? "not available"}/sec\n- Active connections: ${metrics?.connections ?? "not available"}\n- Connection events: ${stats?.totalPackets ?? 0}\n- Current alerts: ${alerts.length}`;
     } else if (lowerMsg.includes("firewall") || lowerMsg.includes("block")) {
-      responseContent = `**Firewall service state**\\n- Active flag: ${firewall.active}\\n- Auto-block flag: ${firewall.autoBlock}\\n- Policy entries: ${firewall.rules.length}\\n- Blocked IP entries: ${firewall.blockedIPs.length}\\n\\nThese are application-reported settings. The Docker passive connection monitor does not itself block host traffic.`;
+      responseContent = `Legacy firewall service state\n- Active flag: ${firewall.active}\n- Auto-block flag: ${firewall.autoBlock}\n- Policy entries: ${firewall.rules.length}\n- Blocked IP entries: ${firewall.blockedIPs.length}\n\nRemote firewall enforcement requires the Firestore endpoint policy flow on Endpoints (EDR).`;
     } else {
-      responseContent = "No AI model is connected to this page in the current build. I can summarize live alerts, connection metrics and firewall settings only; I will not invent threat findings or simulated analysis.";
+      responseContent =
+        "No AI model is connected in this build. I can summarize received session alerts, telemetry counters, and firewall flags only.";
     }
 
     const assistantMessage: Message = {
@@ -83,26 +85,25 @@ const AIAnalystPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      {/* Header */}
+    <div className="flex flex-col h-[calc(100vh-10rem)]">
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
           <Brain className="w-7 h-7 text-primary" />
           SOC Context Assistant
         </h1>
-        <p className="text-muted-foreground">Rule-based summaries from live dashboard data. No LLM is connected in this build.</p>
+        <p className="text-muted-foreground text-sm">
+          Rule-based summaries from connected session data. No LLM is connected in this build.
+        </p>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 cyber-border bg-card/30 backdrop-blur-sm rounded-lg overflow-hidden flex flex-col">
-        {/* Messages */}
+      <div className="flex-1 cyber-border bg-card/80 backdrop-blur-sm rounded-xl overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
             <motion.div
               key={message.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.05 }}
               className={cn(
                 "flex gap-3",
                 message.role === "user" ? "justify-end" : "justify-start"
@@ -115,22 +116,19 @@ const AIAnalystPage = () => {
               )}
               <div
                 className={cn(
-                  "max-w-[70%] rounded-lg p-4",
+                  "max-w-[75%] rounded-lg p-4",
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted/50 text-foreground font-mono text-sm"
+                    : "bg-muted/60 text-foreground font-mono text-sm"
                 )}
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
-                <span className="text-xs opacity-50 mt-2 block">
-                  {message.timestamp}
-                </span>
+                <span className="text-xs opacity-60 mt-2 block">{message.timestamp}</span>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Quick Actions */}
         <div className="px-4 py-3 border-t border-border">
           <div className="flex gap-2 flex-wrap">
             {quickActions.map((action) => (
@@ -148,8 +146,7 @@ const AIAnalystPage = () => {
           </div>
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-border bg-card/50">
+        <div className="p-4 border-t border-border bg-card/60">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -160,8 +157,8 @@ const AIAnalystPage = () => {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about current alerts, metrics, or firewall settings..."
-              className="flex-1 bg-background/50"
+              placeholder="Ask about session alerts, telemetry, or firewall status..."
+              className="flex-1 bg-background/60"
             />
             <Button type="submit" className="gap-2">
               <Send className="w-4 h-4" />

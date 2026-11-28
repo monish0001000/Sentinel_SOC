@@ -1,16 +1,13 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
+import { createRoot } from "react-dom/client";
+import App from "./App.tsx";
 import "./index.css";
-
-// 🔥 IMPORTANT: Import WebSocketProvider
+import { AuthProvider } from "./context/AuthContext";
 import { WebSocketProvider } from "./hooks/useWebSocket";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    {/* 🔗 Wrap entire app with Sentinel WebSocket Provider */}
+createRoot(document.getElementById("root")!).render(
+  <AuthProvider>
     <WebSocketProvider>
       <App />
     </WebSocketProvider>
-  </React.StrictMode>
+  </AuthProvider>
 );
