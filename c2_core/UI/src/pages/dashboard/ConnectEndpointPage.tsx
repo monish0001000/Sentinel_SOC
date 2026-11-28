@@ -28,15 +28,15 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const AGENT_RELEASE = {
-  version: "1.0.1",
+  version: "1.0.2",
   compatibility: "Windows 10 / Windows 11 (x64, self-contained .NET 8)",
   fileName: "SentinelAgentSetup.exe",
-  fileSize: "105.0 MB (110,079,861 bytes)",
-  sha256: "04bdd824ba69f5b6aead8693bc39c302fbc8425105331dc502e10740d870e422",
+  fileSize: "105.0 MB (110,089,017 bytes)",
+  sha256: "47abc4d328c4ce99e0dba8bab60317406edd3b9a5825f5ca5562eb5193f6e330",
   downloadUrl:
     import.meta.env.VITE_AGENT_DOWNLOAD_URL ||
-    "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.1/SentinelAgentSetup.exe",
-  releasesPageUrl: "https://github.com/monish0001000/Sentinel_SOC/releases/tag/v1.0.1",
+    "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.2/SentinelAgentSetup.exe",
+  releasesPageUrl: "https://github.com/monish0001000/Sentinel_SOC/releases/tag/v1.0.2",
 };
 
 const ConnectEndpointPage = () => {
