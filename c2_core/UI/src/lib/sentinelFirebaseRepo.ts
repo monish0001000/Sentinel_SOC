@@ -106,14 +106,16 @@ function generateRandomToken(byteLength = 32): string {
 
 export async function createEndpointEnrollment(
   ownerUid: string,
-  label = "Windows Endpoint"
+  label = "Windows Endpoint",
+  ttlMinutes = 15
 ): Promise<{ pairingToken: string; expiresAt: Date; ownerUid: string }> {
   if (!db) {
     throw new Error("Firebase Firestore is not configured.");
   }
+  const safeTtlMinutes = Math.max(5, Math.min(43200, ttlMinutes));
   const pairingToken = generateRandomToken(24);
   const tokenHash = await sha256Hex(pairingToken);
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + safeTtlMinutes * 60 * 1000);
 
   await setDoc(doc(db, "enrollments", tokenHash), {
     ownerUid,

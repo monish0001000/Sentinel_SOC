@@ -44,6 +44,7 @@ const ConnectEndpointPage = () => {
   const { toast } = useToast();
 
   const [label, setLabel] = useState("Windows Workstation");
+  const [ttlMinutes, setTtlMinutes] = useState<number>(10080); // Default 7 days (1 week)
   const [bundleJson, setBundleJson] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
@@ -74,9 +75,13 @@ const ConnectEndpointPage = () => {
   }, [expiresAt]);
 
   const formatCountdown = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    const days = Math.floor(secs / 86400);
+    const hours = Math.floor((secs % 86400) / 3600);
+    const mins = Math.floor((secs % 3600) / 60);
+    const remSecs = secs % 60;
+    if (days > 0) return `${days}d ${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h ${mins}m ${remSecs}s`;
+    return `${String(mins).padStart(2, "0")}:${String(remSecs).padStart(2, "0")}`;
   };
 
   const handleGenerate = async () => {
@@ -91,7 +96,11 @@ const ConnectEndpointPage = () => {
 
     setGenerating(true);
     try {
-      const res = await createEndpointEnrollment(user.uid, label.trim() || "Windows Endpoint");
+      const res = await createEndpointEnrollment(
+        user.uid,
+        label.trim() || "Windows Endpoint",
+        ttlMinutes
+      );
       const payload = {
         FirebaseProjectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
         FirebaseWebApiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -101,9 +110,17 @@ const ConnectEndpointPage = () => {
       };
       setBundleJson(JSON.stringify(payload, null, 2));
       setExpiresAt(res.expiresAt);
+      const validityLabel =
+        ttlMinutes >= 43200
+          ? "30 days (1 month)"
+          : ttlMinutes >= 10080
+            ? "7 days (1 week)"
+            : ttlMinutes >= 1440
+              ? "24 hours"
+              : `${ttlMinutes} minutes`;
       toast({
         title: "Enrollment Bundle Generated",
-        description: "Single-use token valid for 15 minutes.",
+        description: `Single-use token valid for ${validityLabel}.`,
       });
     } catch (err: unknown) {
       toast({
@@ -237,14 +254,26 @@ const ConnectEndpointPage = () => {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Endpoint label (e.g. Corp-Laptop-01)"
-            className="max-w-sm"
+            className="max-w-xs"
             disabled={!isFirebaseConfigured || generating}
           />
+          <select
+            aria-label="Token validity period"
+            value={ttlMinutes}
+            onChange={(e) => setTtlMinutes(Number(e.target.value))}
+            disabled={!isFirebaseConfigured || generating}
+            className="h-10 px-3 rounded-md border border-border bg-background text-sm text-foreground"
+          >
+            <option value={15}>Valid for 15 minutes</option>
+            <option value={1440}>Valid for 24 hours (1 day)</option>
+            <option value={10080}>Valid for 7 days (1 week)</option>
+            <option value={43200}>Valid for 30 days (1 month)</option>
+          </select>
           <Button onClick={handleGenerate} disabled={!isFirebaseConfigured || generating} className="gap-2">
             <KeyRound className="w-4 h-4" />
             {generating ? "Generating..." : "Generate Enrollment Bundle"}
