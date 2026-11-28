@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   Timestamp,
   limit,
   Unsubscribe,
@@ -240,6 +241,112 @@ export async function createSafeFirewallPolicy(params: {
   });
 
   return policyId;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  actorUid: string;
+  targetEndpointId?: string;
+  policyId?: string;
+  action: string;
+  targetIp?: string | null;
+  reason: string;
+  createdAt: Date;
+}
+
+export interface TelemetrySampleRecord {
+  id: string;
+  endpointId: string;
+  capturedAt: Date;
+  cpuPercent: number;
+  memoryPercent: number;
+  diskPercent?: number;
+  networkTxBytesPerSec?: number;
+  networkRxBytesPerSec?: number;
+}
+
+export async function acknowledgeEndpointAlert(
+  ownerUid: string,
+  endpointId: string,
+  alertId: string
+): Promise<void> {
+  if (!db) {
+    throw new Error("Firebase Firestore is not configured.");
+  }
+  await updateDoc(
+    doc(db, "users", ownerUid, "endpoints", endpointId, "alerts", alertId),
+    { status: "acknowledged" }
+  );
+}
+
+export function subscribeUserAuditLogs(
+  ownerUid: string,
+  onUpdate: (records: AuditLogRecord[]) => void,
+  onError?: (err: Error) => void
+): Unsubscribe {
+  if (!db) {
+    return () => {};
+  }
+  const q = query(
+    collection(db, "users", ownerUid, "audit"),
+    orderBy("createdAt", "desc"),
+    limit(100)
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const records: AuditLogRecord[] = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          actorUid: data.actorUid || ownerUid,
+          targetEndpointId: data.targetEndpointId,
+          policyId: data.policyId,
+          action: data.action || "event",
+          targetIp: data.targetIp ?? null,
+          reason: data.reason || "",
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+        };
+      });
+      onUpdate(records);
+    },
+    (err) => onError?.(err)
+  );
+}
+
+export function subscribeEndpointTelemetry(
+  ownerUid: string,
+  endpointId: string,
+  onUpdate: (samples: TelemetrySampleRecord[]) => void
+): Unsubscribe {
+  if (!db) {
+    return () => {};
+  }
+  const q = query(
+    collection(db, "users", ownerUid, "endpoints", endpointId, "telemetry"),
+    orderBy("capturedAt", "desc"),
+    limit(30)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const samples: TelemetrySampleRecord[] = snapshot.docs
+      .map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          endpointId: data.endpointId || endpointId,
+          capturedAt: data.capturedAt?.toDate ? data.capturedAt.toDate() : new Date(),
+          cpuPercent: Number(data.cpuPercent ?? 0),
+          memoryPercent: Number(data.memoryPercent ?? 0),
+          diskPercent: data.diskPercent !== undefined ? Number(data.diskPercent) : undefined,
+          networkTxBytesPerSec:
+            data.networkTxBytesPerSec !== undefined ? Number(data.networkTxBytesPerSec) : undefined,
+          networkRxBytesPerSec:
+            data.networkRxBytesPerSec !== undefined ? Number(data.networkRxBytesPerSec) : undefined,
+        };
+      })
+      .reverse();
+    onUpdate(samples);
+  });
 }
 
 export function subscribePolicyAcks(

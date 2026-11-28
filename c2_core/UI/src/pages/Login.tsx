@@ -1,22 +1,25 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Lock, Mail, AlertTriangle, Eye, EyeOff, Info } from "lucide-react";
+import { Shield, Lock, Mail, AlertTriangle, Eye, EyeOff, Info, UserPlus, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CyberBackground } from "@/components/ui/CyberBackground";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/context/AuthContext";
+import { mapFirebaseAuthError, useAuth } from "@/context/AuthContext";
 
 const Login = () => {
+  const [mode, setMode] = useState<"signin" | "register">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, isConfigured, signIn } = useAuth();
+  const { user, isConfigured, signIn, register } = useAuth();
 
   useEffect(() => {
     if (isConfigured && user) {
@@ -24,42 +27,56 @@ const Login = () => {
     }
   }, [isConfigured, user, navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorBanner(null);
 
     if (!isConfigured) {
+      const msg =
+        "Firebase Authentication is not configured in this hosted build. Set VITE_FIREBASE_* environment variables and rebuild.";
+      setErrorBanner(msg);
       toast({
         title: "Authentication Unavailable",
-        description:
-          "Firebase Authentication is not configured in this hosted build. Set VITE_FIREBASE_* environment variables and rebuild to enable sign-in.",
+        description: msg,
         variant: "destructive",
       });
       return;
     }
 
     if (!email.trim() || !password) {
-      toast({
-        title: "Missing Credentials",
-        description: "Enter both your email address and password.",
-        variant: "destructive",
-      });
+      setErrorBanner("Enter both your email address and password.");
       return;
+    }
+
+    if (mode === "register") {
+      if (password.length < 8) {
+        setErrorBanner("Password must be at least 8 characters long.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorBanner("Passwords do not match.");
+        return;
+      }
     }
 
     setIsLoading(true);
     try {
-      const signedInUser = await signIn(email.trim(), password);
+      const authedUser =
+        mode === "signin"
+          ? await signIn(email.trim(), password)
+          : await register(email.trim(), password);
+
       toast({
-        title: "Access Granted",
-        description: `Signed in as ${signedInUser.email || signedInUser.uid}`,
+        title: mode === "signin" ? "Access Granted" : "Account Created",
+        description: `Signed in as ${authedUser.email || authedUser.uid}`,
       });
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Invalid email or password.";
+      const friendly = mapFirebaseAuthError(err);
+      setErrorBanner(friendly);
       toast({
-        title: "Authentication Failed",
-        description: message,
+        title: mode === "signin" ? "Authentication Failed" : "Registration Failed",
+        description: friendly,
         variant: "destructive",
       });
     } finally {
@@ -77,8 +94,8 @@ const Login = () => {
         transition={{ duration: 0.4 }}
         className="relative z-10 w-full max-w-md"
       >
-        <div className="cyber-border bg-card/90 backdrop-blur-xl rounded-lg p-8">
-          <div className="text-center mb-8">
+        <div className="cyber-border bg-card/90 backdrop-blur-xl rounded-xl p-8">
+          <div className="text-center mb-6">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -87,11 +104,50 @@ const Login = () => {
             >
               <Shield className="w-8 h-8 text-primary" />
             </motion.div>
-            <h1 className="text-2xl font-bold text-foreground">Secure Access</h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              {mode === "signin" ? "Secure Access" : "Create Operator Account"}
+            </h1>
             <p className="text-muted-foreground text-sm mt-2">
-              Sign in with your Sentinel Firebase operator account
+              {mode === "signin"
+                ? "Sign in with your Sentinel Firebase operator account"
+                : "Register a Firebase Authentication account for Sentinel SOC"}
             </p>
           </div>
+
+          {isConfigured && (
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-muted/60 border border-border mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setErrorBanner(null);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
+                  mode === "signin"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setErrorBanner(null);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-colors ${
+                  mode === "register"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                Register
+              </button>
+            </div>
+          )}
 
           {!isConfigured ? (
             <div className="flex items-start gap-3 p-3.5 rounded-md bg-destructive/10 border border-destructive/25 mb-6">
@@ -108,22 +164,22 @@ const Login = () => {
                 </p>
               </div>
             </div>
+          ) : errorBanner ? (
+            <div className="flex items-start gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/25 mb-5">
+              <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-destructive leading-relaxed">{errorBanner}</p>
+            </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-start gap-3 p-3 rounded-md bg-warning/10 border border-warning/20 mb-6"
-            >
+            <div className="flex items-start gap-3 p-3 rounded-md bg-warning/10 border border-warning/20 mb-5">
               <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
               <p className="text-xs text-foreground/80">
                 Authorized personnel only. Authentication is enforced via Firebase
                 Authentication.
               </p>
-            </motion.div>
+            </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm text-muted-foreground">
                 Email Address
@@ -152,7 +208,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -171,6 +227,27 @@ const Login = () => {
               </div>
             </div>
 
+            {mode === "register" && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm text-muted-foreground">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="••••••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={!isConfigured || isLoading}
+                    className="pl-10 bg-background/60 border-border focus:border-primary focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+            )}
+
             <Button
               type="submit"
               className="w-full"
@@ -183,10 +260,12 @@ const Login = () => {
                 >
                   <Shield className="w-4 h-4" />
                 </motion.div>
-              ) : isConfigured ? (
+              ) : !isConfigured ? (
+                "Authentication Unavailable"
+              ) : mode === "signin" ? (
                 "Sign In with Firebase"
               ) : (
-                "Authentication Unavailable"
+                "Create Operator Account"
               )}
             </Button>
           </form>
@@ -213,7 +292,7 @@ const Login = () => {
             }`}
           />
           {isConfigured
-            ? "Firebase Authentication configured"
+            ? "Firebase Authentication ready (monix-soc)"
             : "Firebase Authentication not configured (hosted preview)"}
         </motion.div>
       </motion.div>

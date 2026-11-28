@@ -442,7 +442,6 @@
   background-size: 34px 34px;
 }
 .sentinel-app .scan-line-overlay::before { display:none; }
-.sentinel-app .text-white { color:#1d2a40 !important; }
 .sentinel-app .text-gray-300 { color:#52627b !important; }
 .sentinel-app .text-gray-400 { color:#697993 !important; }
 .sentinel-app .text-gray-500 { color:#77869d !important; }

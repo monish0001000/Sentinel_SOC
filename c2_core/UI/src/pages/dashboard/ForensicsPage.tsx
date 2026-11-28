@@ -1,35 +1,69 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScrollText, Search, Download, DatabaseZap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAuth } from "@/context/AuthContext";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { AuditLogRecord, subscribeUserAuditLogs } from "@/lib/sentinelFirebaseRepo";
 
 const ForensicsPage = () => {
-  const { logs, connectionStatus } = useWebSocket();
+  const { logs: wsLogs } = useWebSocket();
+  const { user } = useAuth();
+  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("ALL");
 
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid) {
+      setAuditLogs([]);
+      return;
+    }
+    return subscribeUserAuditLogs(user.uid, setAuditLogs);
+  }, [user?.uid]);
+
+  const combinedRows = useMemo(() => {
+    if (isFirebaseConfigured) {
+      return auditLogs.map((a) => ({
+        id: a.id,
+        timestamp: a.createdAt.toLocaleString(),
+        level: "INFO",
+        source: a.targetEndpointId ? `endpoint:${a.targetEndpointId.slice(0, 10)}` : "console",
+        ip: a.targetIp || "—",
+        message: `${a.action}${a.reason ? ` — ${a.reason}` : ""}`,
+      }));
+    }
+    return wsLogs.map((l) => ({
+      id: l.id,
+      timestamp: l.timestamp,
+      level: l.level.toUpperCase(),
+      source: l.source,
+      ip: l.ip || "—",
+      message: l.message,
+    }));
+  }, [auditLogs, wsLogs]);
+
   const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
+    return combinedRows.filter((row) => {
       const matchesSearch =
-        log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (log.ip || "").includes(searchTerm) ||
-        log.source.toLowerCase().includes(searchTerm.toLowerCase());
+        row.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.ip.includes(searchTerm) ||
+        row.source.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesSeverity =
-        severityFilter === "ALL" || log.level.toUpperCase() === severityFilter;
+        severityFilter === "ALL" || row.level === severityFilter;
 
       return matchesSearch && matchesSeverity;
     });
-  }, [logs, searchTerm, severityFilter]);
+  }, [combinedRows, searchTerm, severityFilter]);
 
   const exportCSV = () => {
     if (filteredLogs.length === 0) return;
-    const headers = "ID,Timestamp,Level,Source,Protocol,Port,IP,Status,Message\n";
+    const headers = "ID,Timestamp,Level,Source,IP,Message\n";
     const rows = filteredLogs
       .map(
         (l) =>
-          `"${l.id}","${l.timestamp}","${l.level}","${l.source}","${l.protocol || ""}","${l.port || ""}","${l.ip || ""}","${l.status}","${l.message.replace(/"/g, '""')}"`
+          `"${l.id}","${l.timestamp}","${l.level}","${l.source}","${l.ip}","${l.message.replace(/"/g, '""')}"`
       )
       .join("\n");
     const blob = new Blob([headers + rows], { type: "text/csv" });
@@ -47,10 +81,12 @@ const ForensicsPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ScrollText className="w-6 h-6 text-primary" />
-            Forensics &amp; Historical Logs
+            Forensics &amp; Audit History
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Session log search and export — persistent SQL/SIEM archive requires a backend connector
+            {isFirebaseConfigured
+              ? "Firestore operator audit trail and endpoint action records"
+              : "Session log search and export"}
           </p>
         </div>
 
@@ -66,12 +102,11 @@ const ForensicsPage = () => {
         </Button>
       </div>
 
-      {/* Filters */}
       <div className="glass-card p-4 rounded-xl flex flex-wrap gap-3 items-center border border-border/60">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Filter session events by message, IP, or source..."
+            placeholder="Filter audit & event records..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
@@ -93,17 +128,16 @@ const ForensicsPage = () => {
         </div>
       </div>
 
-      {/* Results or Honest Empty State */}
       {filteredLogs.length === 0 ? (
         <div className="glass-card rounded-xl p-10 text-center border border-border/60 space-y-2">
           <DatabaseZap className="w-10 h-10 text-muted-foreground mx-auto opacity-50" />
           <h2 className="text-base font-semibold text-foreground">
-            Historical SIEM Archive Not Connected
+            {isFirebaseConfigured ? "No Audit Records Recorded" : "Historical SIEM Archive Not Connected"}
           </h2>
           <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-            {connectionStatus === "connected"
-              ? "No captured session logs match the current filter."
-              : "Legacy local FastAPI archive (/logs) is disabled in hosted builds, and no live stream events have been received in this session."}
+            {isFirebaseConfigured
+              ? "Policy actions and operator audit events in Firestore will appear here."
+              : "Legacy local FastAPI archive (/logs) is disabled in hosted builds."}
           </p>
         </div>
       ) : (
@@ -125,7 +159,7 @@ const ForensicsPage = () => {
                     <td className="p-3 text-muted-foreground whitespace-nowrap">{log.timestamp}</td>
                     <td className="p-3 font-bold uppercase">{log.level}</td>
                     <td className="p-3 text-primary">{log.source}</td>
-                    <td className="p-3">{log.ip || "—"}</td>
+                    <td className="p-3">{log.ip}</td>
                     <td className="p-3">{log.message}</td>
                   </tr>
                 ))}
