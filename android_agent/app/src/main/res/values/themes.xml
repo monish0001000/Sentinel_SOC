@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SentinelAgent" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">#38BDF8</item>
+        <item name="colorOnPrimary">#0B1220</item>
+        <item name="android:statusBarColor">#0B1220</item>
+        <item name="android:navigationBarColor">#0B1220</item>
+    </style>
+</resources>

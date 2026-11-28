@@ -1,139 +1,172 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { NavLink, useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
+  Shield,
   LayoutDashboard,
-  Radio,
+  ScrollText,
   AlertTriangle,
   BarChart3,
-  Brain,
   Settings,
   LogOut,
-  Shield,
   ChevronLeft,
   ChevronRight,
-  Network, // New import
-  BrainCircuit, // New import
-  ShieldCheck, // New import
-  FileText, // New import
-  Database, // New import
-  Server, // New import
+  Lock,
+  Server,
+  Brain,
+  Activity,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Overview", path: "/dashboard" },
-  { icon: Network, label: "Live Traffic", path: "/dashboard/traffic" },
-  { icon: BrainCircuit, label: "AI Analyst", path: "/dashboard/ai" },
-  { icon: ShieldCheck, label: "Firewall Control", path: "/dashboard/firewall" },
-  { icon: FileText, label: "Security Policies", path: "/dashboard/policies" },
-  { icon: Database, label: "SIEM Forensics", path: "/dashboard/forensics" },
-  { icon: Server, label: "EDR Nodes", path: "/dashboard/nodes" },
-  { icon: Settings, label: "Settings", path: "/dashboard/settings" },
+const navItems = [
+  { path: "/dashboard", icon: LayoutDashboard, label: "Overview", end: true },
+  { path: "/dashboard/logs", icon: ScrollText, label: "Live Logs" },
+  { path: "/dashboard/threats", icon: AlertTriangle, label: "Threats" },
+  { path: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
+  { path: "/dashboard/traffic", icon: Activity, label: "Live Traffic" },
+  { path: "/dashboard/ai-analyst", icon: Brain, label: "AI Analyst" },
+  { path: "/dashboard/firewall", icon: Lock, label: "Firewall Control" },
+  { path: "/dashboard/policies", icon: Shield, label: "Policy Engine" },
+  { path: "/dashboard/forensics", icon: ScrollText, label: "Forensics" },
+  { path: "/dashboard/nodes", icon: Server, label: "Endpoints" },
+  { path: "/dashboard/connect-endpoint", icon: Activity, label: "Connect Endpoint" },
+  { path: "/dashboard/settings", icon: Settings, label: "Settings" },
 ];
 
-export const Sidebar = () => {
-  const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
 
-  const handleLogout = () => {
-    localStorage.removeItem("sentinel_token");
-    localStorage.removeItem("sentinel_role");
-    navigate("/");
+export const Sidebar = ({ mobileOpen = false, onClose }: SidebarProps) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      toast({
+        title: "Session Terminated",
+        description: "You have been signed out.",
+      });
+      onClose?.();
+      navigate("/login", { replace: true });
+    }
   };
 
-  return (
-    <motion.aside
-      initial={{ x: -20, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      className={cn(
-        "relative h-screen glass-card-strong border-r border-border/50 flex flex-col transition-all duration-300",
-        collapsed ? "w-16" : "w-56"
-      )}
-    >
-      {/* Logo */}
-      <div className="p-4 border-b border-border/50">
-        <Link to="/dashboard" className="flex items-center gap-3">
-          <div className="relative flex-shrink-0">
-            <Shield className="w-7 h-7 text-primary" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-success rounded-full live-pulse" />
+  const renderContent = (isMobile: boolean) => (
+    <div className="h-full flex flex-col bg-sidebar border-r border-sidebar-border">
+      {/* Header */}
+      <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-3 overflow-hidden">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center flex-shrink-0">
+            <Shield className="w-4 h-4 text-primary" />
           </div>
-          {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="font-bold text-base text-foreground tracking-tight"
-            >
+          {(!collapsed || isMobile) && (
+            <span className="font-bold text-foreground tracking-wider whitespace-nowrap">
               SENTINEL
-            </motion.span>
+            </span>
           )}
-        </Link>
+        </div>
+        {isMobile ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close navigation menu"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground flex-shrink-0"
+          >
+            {collapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1">
-        {menuItems.map((item) => {
-          const userRole = localStorage.getItem("sentinel_role");
-
-          // Role-based filtering
-          if (userRole !== "admin") {
-            if (item.label === "Settings" || item.label === "Firewall Control") {
-              return null;
-            }
-          }
-
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group",
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.end}
+            onClick={isMobile ? onClose : undefined}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                 isActive
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              )}
-            >
-              <item.icon
-                className={cn(
-                  "w-4 h-4 flex-shrink-0 transition-colors",
-                  isActive ? "text-primary" : "group-hover:text-primary"
-                )}
-              />
-              {!collapsed && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-            </Link>
-          );
-        })}
+                  ? "bg-primary/10 text-primary border border-primary/30"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
+                collapsed && !isMobile && "justify-center px-2"
+              )
+            }
+          >
+            <item.icon className="w-4 h-4 flex-shrink-0" />
+            {(!collapsed || isMobile) && <span>{item.label}</span>}
+          </NavLink>
+        ))}
       </nav>
 
-      {/* Collapse Toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-16 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-primary transition-colors"
-      >
-        {collapsed ? (
-          <ChevronRight className="w-3 h-3" />
-        ) : (
-          <ChevronLeft className="w-3 h-3" />
-        )}
-      </button>
-
-      {/* Logout */}
-      <div className="p-3 border-t border-border/50">
-        <button
+      {/* Footer */}
+      <div className="p-3 border-t border-sidebar-border">
+        <Button
+          variant="ghost"
           onClick={handleLogout}
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg w-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors",
-            collapsed && "justify-center"
+            "w-full justify-start gap-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+            collapsed && !isMobile && "justify-center px-2"
           )}
         >
           <LogOut className="w-4 h-4 flex-shrink-0" />
-          {!collapsed && <span className="text-sm font-medium">Logout</span>}
-        </button>
+          {(!collapsed || isMobile) && <span>Logout</span>}
+        </Button>
       </div>
-    </motion.aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sticky Sidebar */}
+      <aside
+        className={cn(
+          "hidden md:block sticky top-0 h-screen flex-shrink-0 transition-all duration-300",
+          collapsed ? "w-16" : "w-56"
+        )}
+      >
+        {renderContent(false)}
+      </aside>
+
+      {/* Mobile Drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div
+            className="fixed inset-0 bg-foreground/20 backdrop-blur-sm"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          <aside className="relative z-10 w-64 max-w-[80vw] h-full shadow-xl">
+            {renderContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

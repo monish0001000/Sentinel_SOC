@@ -1,150 +1,175 @@
-import { useState, useEffect } from "react";
-import { Search, Database, Filter, Calendar } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const API_URL = "http://localhost:8000";
-
-interface LogEntry {
-    id: string;
-    timestamp: string;
-    level: string;
-    message: string;
-    source: string;
-    type: string;
-    metadata: string;
-}
+import { useEffect, useMemo, useState } from "react";
+import { ScrollText, Search, Download, DatabaseZap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAuth } from "@/context/AuthContext";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import { AuditLogRecord, subscribeUserAuditLogs } from "@/lib/sentinelFirebaseRepo";
 
 const ForensicsPage = () => {
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [filterLevel, setFilterLevel] = useState("all");
-    const [filterType, setFilterType] = useState("all");
-    const [loading, setLoading] = useState(false);
+  const { logs: wsLogs } = useWebSocket();
+  const { user } = useAuth();
+  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("ALL");
 
-    const fetchLogs = async () => {
-        setLoading(true);
-        try {
-            let url = `${API_URL}/logs?limit=200`;
-            if (filterLevel !== "all") url += `&level=${filterLevel}`;
-            if (filterType !== "all") url += `&type=${filterType}`;
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid) {
+      setAuditLogs([]);
+      return;
+    }
+    return subscribeUserAuditLogs(user.uid, setAuditLogs);
+  }, [user?.uid]);
 
-            const token = localStorage.getItem("sentinel_token");
-            if (!token) {
-                window.location.href = "/login";
-                return;
-            }
+  const combinedRows = useMemo(() => {
+    if (isFirebaseConfigured) {
+      return auditLogs.map((a) => ({
+        id: a.id,
+        timestamp: a.createdAt.toLocaleString(),
+        level: "INFO",
+        source: a.targetEndpointId ? `endpoint:${a.targetEndpointId.slice(0, 10)}` : "console",
+        ip: a.targetIp || "—",
+        message: `${a.action}${a.reason ? ` — ${a.reason}` : ""}`,
+      }));
+    }
+    return wsLogs.map((l) => ({
+      id: l.id,
+      timestamp: l.timestamp,
+      level: l.level.toUpperCase(),
+      source: l.source,
+      ip: l.ip || "—",
+      message: l.message,
+    }));
+  }, [auditLogs, wsLogs]);
 
-            const res = await fetch(url, {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
+  const filteredLogs = useMemo(() => {
+    return combinedRows.filter((row) => {
+      const matchesSearch =
+        row.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.ip.includes(searchTerm) ||
+        row.source.toLowerCase().includes(searchTerm.toLowerCase());
 
-            if (res.status === 401) {
-                window.location.href = "/login";
-                return;
-            }
+      const matchesSeverity =
+        severityFilter === "ALL" || row.level === severityFilter;
 
-            if (!res.ok) throw new Error("Failed to fetch logs");
+      return matchesSearch && matchesSeverity;
+    });
+  }, [combinedRows, searchTerm, severityFilter]);
 
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setLogs(data);
-            } else {
-                setLogs([]);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const exportCSV = () => {
+    if (filteredLogs.length === 0) return;
+    const headers = "ID,Timestamp,Level,Source,IP,Message\n";
+    const rows = filteredLogs
+      .map(
+        (l) =>
+          `"${l.id}","${l.timestamp}","${l.level}","${l.source}","${l.ip}","${l.message.replace(/"/g, '""')}"`
+      )
+      .join("\n");
+    const blob = new Blob([headers + rows], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sentinel_forensics_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
-    useEffect(() => {
-        fetchLogs();
-    }, [filterLevel, filterType]);
-
-    return (
-        <div className="space-y-6 text-foreground p-6">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Database className="w-8 h-8 text-amber-500" />
-                        Digital Forensics (SIEM)
-                    </h1>
-                    <p className="text-muted-foreground font-mono text-xs">PERSISTENT EVENT STORAGE // SEARCH & ANALYSIS</p>
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={fetchLogs} className="bg-primary/20 hover:bg-primary/30 text-primary px-4 py-2 rounded-lg font-bold border border-primary/30">
-                        Refresh
-                    </button>
-                </div>
-            </div>
-
-            {/* Controls */}
-            <div className="flex gap-4 mb-6">
-                <div className="glass-card px-4 py-2 flex items-center gap-2 border border-white/10 rounded-lg">
-                    <Filter className="w-4 h-4 text-muted-foreground" />
-                    <select
-                        value={filterLevel}
-                        onChange={e => setFilterLevel(e.target.value)}
-                        className="bg-transparent text-sm focus:outline-none"
-                    >
-                        <option value="all">All Levels</option>
-                        <option value="INFO">INFO</option>
-                        <option value="WARNING">WARNING</option>
-                        <option value="CRITICAL">CRITICAL</option>
-                    </select>
-                </div>
-
-                <div className="glass-card px-4 py-2 flex items-center gap-2 border border-white/10 rounded-lg">
-                    <Search className="w-4 h-4 text-muted-foreground" />
-                    <select
-                        value={filterType}
-                        onChange={e => setFilterType(e.target.value)}
-                        className="bg-transparent text-sm focus:outline-none"
-                    >
-                        <option value="all">All Types</option>
-                        <option value="Config">Config Changes</option>
-                        <option value="Alert">Security Alerts</option>
-                        <option value="Policy Violation">Policy Violations</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="glass-card rounded-xl border border-white/10 overflow-hidden">
-                <div className="grid grid-cols-12 gap-4 p-3 bg-white/5 font-mono text-xs font-bold text-muted-foreground border-b border-white/10 uppercase">
-                    <div className="col-span-2">Timestamp</div>
-                    <div className="col-span-1">Level</div>
-                    <div className="col-span-2">Source</div>
-                    <div className="col-span-2">Type</div>
-                    <div className="col-span-5">Message</div>
-                </div>
-
-                <div className="max-h-[600px] overflow-y-auto">
-                    {logs.map((log) => (
-                        <div key={log.id} className="grid grid-cols-12 gap-4 p-3 border-b border-white/5 hover:bg-white/5 transition-colors font-mono text-xs items-center">
-                            <div className="col-span-2 opacity-70">{new Date(log.timestamp).toLocaleString()}</div>
-                            <div className="col-span-1">
-                                <span className={cn(
-                                    "px-1.5 py-0.5 rounded font-bold",
-                                    log.level === "CRITICAL" ? "bg-red-500/20 text-red-500" :
-                                        log.level === "WARNING" ? "bg-orange-500/20 text-orange-400" :
-                                            "bg-blue-500/20 text-blue-400"
-                                )}>
-                                    {log.level}
-                                </span>
-                            </div>
-                            <div className="col-span-2 text-cyan-400">{log.source}</div>
-                            <div className="col-span-2 opacity-70">{log.type}</div>
-                            <div className="col-span-5 truncate text-white/90" title={log.message}>{log.message}</div>
-                        </div>
-                    ))}
-                    {logs.length === 0 && !loading && (
-                        <div className="p-8 text-center text-muted-foreground">No logs found in archive.</div>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <ScrollText className="w-6 h-6 text-primary" />
+            Forensics &amp; Audit History
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isFirebaseConfigured
+              ? "Firestore operator audit trail and endpoint action records"
+              : "Session log search and export"}
+          </p>
         </div>
-    );
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportCSV}
+          disabled={filteredLogs.length === 0}
+          className="gap-2"
+        >
+          <Download className="w-4 h-4" />
+          Export CSV
+        </Button>
+      </div>
+
+      <div className="glass-card p-4 rounded-xl flex flex-wrap gap-3 items-center border border-border/60">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Filter audit & event records..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {["ALL", "INFO", "WARNING", "ERROR", "CRITICAL"].map((sev) => (
+            <Button
+              key={sev}
+              size="sm"
+              variant={severityFilter === sev ? "default" : "outline"}
+              onClick={() => setSeverityFilter(sev)}
+              className="text-xs font-mono"
+            >
+              {sev}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {filteredLogs.length === 0 ? (
+        <div className="glass-card rounded-xl p-10 text-center border border-border/60 space-y-2">
+          <DatabaseZap className="w-10 h-10 text-muted-foreground mx-auto opacity-50" />
+          <h2 className="text-base font-semibold text-foreground">
+            {isFirebaseConfigured ? "No Audit Records Recorded" : "Historical SIEM Archive Not Connected"}
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-lg mx-auto">
+            {isFirebaseConfigured
+              ? "Policy actions and operator audit events in Firestore will appear here."
+              : "Legacy local FastAPI archive (/logs) is disabled in hosted builds."}
+          </p>
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl overflow-hidden border border-border/60">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-mono text-xs">
+              <thead className="bg-muted/40 text-muted-foreground uppercase border-b border-border/60">
+                <tr>
+                  <th className="p-3">Time</th>
+                  <th className="p-3">Level</th>
+                  <th className="p-3">Source</th>
+                  <th className="p-3">IP</th>
+                  <th className="p-3">Message</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-accent/30 transition-colors">
+                    <td className="p-3 text-muted-foreground whitespace-nowrap">{log.timestamp}</td>
+                    <td className="p-3 font-bold uppercase">{log.level}</td>
+                    <td className="p-3 text-primary">{log.source}</td>
+                    <td className="p-3">{log.ip}</td>
+                    <td className="p-3">{log.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default ForensicsPage;

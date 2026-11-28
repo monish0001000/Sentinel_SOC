@@ -21,6 +21,10 @@ node_modules/
 dist/
 .vite/
 npm-debug.log
+.env
+.env.local
+.env.*.local
+.firebase/
 
 # IDE
 .vscode/
@@ -49,3 +53,13 @@ logs/
 
 # Docker
 .dockerignore
+
+# .NET Windows Agent build outputs & binaries
+windows_agent/**/bin/
+windows_agent/**/obj/
+windows_agent/**/Payload/
+windows_agent/dist/
+*.exe
+*.dll
+*.pdb
+

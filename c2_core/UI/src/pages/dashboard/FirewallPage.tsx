@@ -1,510 +1,343 @@
-import { useState, useEffect } from "react";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
-    Shield,
-    ShieldAlert,
-    ShieldCheck,
-    Ban,
-    Activity,
-    Plus,
-    Trash2,
-    Lock,
-    Unlock,
-    Power,
-    Zap
+  Lock,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
+  Ban,
+  Unlock,
+  RefreshCw,
+  Server,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import {
+  createSafeFirewallPolicy,
+  DesiredFirewallPolicyRecord,
+  EndpointRecord,
+  FirewallPolicyAck,
+  subscribeEndpointPolicies,
+  subscribeEndpoints,
+  subscribePolicyAcks,
+} from "@/lib/sentinelFirebaseRepo";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const API_URL = "http://localhost:8000"; // Should be env var
-
-const getAuthHeaders = () => {
-    const token = localStorage.getItem("sentinel_token");
-    return {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-    };
-};
-
 const FirewallPage = () => {
-    const { firewall, logs, connected, setFirewallState } = useWebSocket();
-    const [ipInput, setIpInput] = useState("");
-    const [portInput, setPortInput] = useState("");
-    const [countryInput, setCountryInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-    // Initial fetch of status
-    // Initial fetch of status
-    useEffect(() => {
-        const fetchStatus = async () => {
-            try {
-                const token = localStorage.getItem("sentinel_token");
-                if (!token) {
-                    window.location.href = "/login";
-                    return;
-                }
+  const [endpoints, setEndpoints] = useState<EndpointRecord[]>([]);
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string>("");
+  const [policies, setPolicies] = useState<DesiredFirewallPolicyRecord[]>([]);
+  const [acks, setAcks] = useState<FirewallPolicyAck[]>([]);
 
-                const res = await fetch(`${API_URL}/firewall/status`, {
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${token}`
-                    }
-                });
+  const [targetIp, setTargetIp] = useState("");
+  const [reason, setReason] = useState("");
+  const [ttlMinutes, setTtlMinutes] = useState(60);
+  const [submitting, setSubmitting] = useState(false);
 
-                if (res.status === 401) {
-                    window.location.href = "/login";
-                    return;
-                }
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid) {
+      setEndpoints([]);
+      return;
+    }
+    return subscribeEndpoints(user.uid, (list) => {
+      setEndpoints(list);
+      if (list.length > 0 && !list.some((e) => e.endpointId === selectedEndpointId)) {
+        setSelectedEndpointId(list[0].endpointId);
+      }
+    });
+  }, [user?.uid, selectedEndpointId]);
 
-                const data = await res.json();
-
-                // Map backend snake_case to frontend camelCase
-                setFirewallState({
-                    active: data.active,
-                    autoBlock: data.auto_block,
-                    panicMode: data.panic_mode,
-                    blockedIPs: data.blocked_ips || [],
-                    blockedPorts: data.blocked_ports || [],
-                    blockedCountries: data.blocked_countries || [],
-                    rules: data.rules || []
-                });
-            } catch (error) {
-                console.error("Failed to fetch firewall status:", error);
-            }
-        };
-        fetchStatus();
-    }, [setFirewallState]);
-
-    const handleToggleFirewall = async () => {
-        setIsLoading(true);
-        try {
-            const res = await fetch(`${API_URL}/firewall/toggle`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ active: !firewall.active }),
-            });
-            if (!res.ok) throw new Error("Failed to toggle firewall");
-            toast.success(firewall.active ? "Firewall Deactivated" : "Firewall Activated");
-        } catch (error) {
-            toast.error("Error toggling firewall");
-        } finally {
-            setIsLoading(false);
-        }
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid || !selectedEndpointId) {
+      setPolicies([]);
+      setAcks([]);
+      return;
+    }
+    const unsubPol = subscribeEndpointPolicies(user.uid, selectedEndpointId, setPolicies);
+    const unsubAck = subscribePolicyAcks(user.uid, selectedEndpointId, setAcks);
+    return () => {
+      unsubPol();
+      unsubAck();
     };
+  }, [user?.uid, selectedEndpointId]);
 
-    const handleToggleAutoBlock = async () => {
-        try {
-            const res = await fetch(`${API_URL}/firewall/auto-block`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ enabled: !firewall.autoBlock }),
-            });
-            if (!res.ok) throw new Error("Failed to toggle auto-block");
-            toast.success(firewall.autoBlock ? "Auto-Block Disabled" : "Auto-Block Enabled");
-        } catch (error) {
-            toast.error("Error toggling auto-block");
-        }
-    };
+  const selectedEndpoint = endpoints.find((e) => e.endpointId === selectedEndpointId) || null;
 
-    const handleBlockIP = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!ipInput) return;
-        try {
-            const res = await fetch(`${API_URL}/firewall/block-ip`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ ip: ipInput, reason: "Manual Admin Block" }),
-            });
-            if (!res.ok) throw new Error("Failed to block IP");
-            setIpInput("");
-            toast.success(`IP ${ipInput} Blocked`);
-        } catch (error) {
-            toast.error("Error blocking IP");
-        }
-    };
+  const submitPolicy = async (action: "block_ip" | "unblock_ip" | "query_status", ipOverride?: string) => {
+    if (!user?.uid || !selectedEndpoint) return;
+    const ipToUse = (ipOverride ?? targetIp).trim();
+    if ((action === "block_ip" || action === "unblock_ip") && !ipToUse) {
+      toast({ title: "Validation error", description: "Target IPv4/IPv6 is required.", variant: "destructive" });
+      return;
+    }
 
-    const handleUnblockIP = async (ip: string) => {
-        try {
-            const res = await fetch(`${API_URL}/firewall/unblock-ip`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ ip }),
-            });
-            if (!res.ok) throw new Error("Failed to unblock IP");
-            toast.success(`IP ${ip} Unblocked`);
-        } catch (error) {
-            toast.error("Error unblocking IP");
-        }
-    };
+    setSubmitting(true);
+    try {
+      const policyId = await createSafeFirewallPolicy({
+        ownerUid: user.uid,
+        endpointId: selectedEndpoint.endpointId,
+        action,
+        targetIp: action === "query_status" ? undefined : ipToUse,
+        reason: reason.trim() || `${action} issued from Firewall Control`,
+        ttlMinutes,
+      });
+      toast({
+        title: "Firewall Policy Queued",
+        description: `Policy ${policyId} created for ${selectedEndpoint.hostname}. Agent applies & acknowledges on next poll.`,
+      });
+      if (!ipOverride) {
+        setTargetIp("");
+        setReason("");
+      }
+    } catch (err: unknown) {
+      toast({
+        title: "Policy creation failed",
+        description: err instanceof Error ? err.message : "Permission error",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    const handleBlockPort = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!portInput) return;
-        try {
-            const res = await fetch(`${API_URL}/firewall/block-port`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ port: parseInt(portInput), reason: "Manual Admin Block" }),
-            });
-            if (!res.ok) throw new Error("Failed to block Port");
-            setPortInput("");
-            toast.success(`Port ${portInput} Blocked`);
-        } catch (error) {
-            toast.error("Error blocking Port");
-        }
-    };
-
-    const handleUnblockPort = async (port: number) => {
-        try {
-            const res = await fetch(`${API_URL}/firewall/unblock-port`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ port }),
-            });
-            if (!res.ok) throw new Error("Failed to unblock Port");
-            toast.success(`Port ${port} Unblocked`);
-        } catch (error) {
-            toast.error("Error unblocking Port");
-        }
-    };
-
-    const handleTogglePanic = async () => {
-        try {
-            const res = await fetch(`${API_URL}/firewall/panic`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ enabled: !firewall.panicMode }),
-            });
-            if (!res.ok) throw new Error("Failed to toggle panic mode");
-            if (!firewall.panicMode) {
-                toast.error("LOCKDOWN INITIATED: ALL TRAFFIC BLOCKED");
-            } else {
-                toast.success("Lockdown Lifted");
-            }
-        } catch (error) {
-            toast.error("Error toggling panic mode");
-        }
-    };
-
-    const handleBlockCountry = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!countryInput) return;
-        try {
-            const res = await fetch(`${API_URL}/firewall/block-country`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ country_code: countryInput.toUpperCase() }),
-            });
-            if (!res.ok) throw new Error("Failed to block country");
-            setCountryInput("");
-            toast.success(`Country ${countryInput} Blocked`);
-        } catch (error) {
-            toast.error("Error blocking country");
-        }
-    };
-
-    const handleUnblockCountry = async (country_code: string) => {
-        try {
-            const token = localStorage.getItem("sentinel_token");
-            const res = await fetch(`${API_URL}/firewall/unblock-country`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({ country_code }),
-            });
-            if (!res.ok) throw new Error("Failed to unblock country");
-            toast.success(`Country ${country_code} Unblocked`);
-        } catch (error) {
-            toast.error("Error unblocking country");
-        }
-    };
-
-    return (
-        <div className="space-y-6 text-foreground">
-            {/* Panic Mode Banner */}
-            <AnimatePresence>
-                {firewall.panicMode && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="bg-destructive text-destructive-foreground p-4 rounded-xl flex items-center justify-between shadow-[0_0_50px_hsl(var(--destructive))]"
-                    >
-                        <div className="flex items-center gap-4">
-                            <ShieldAlert className="w-10 h-10 animate-pulse" />
-                            <div>
-                                <h2 className="text-xl font-bold tracking-widest">SYSTEM LOCKDOWN ACTIVE</h2>
-                                <p className="text-sm opacity-90">All non-admin traffic is being rejected. Emergency protocols in effect.</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleTogglePanic}
-                            className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded font-bold border border-white/50"
-                        >
-                            DEACTIVATE
-                        </button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Header & Status */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                {/* Main Status Card */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                        "col-span-2 glass-card p-6 rounded-xl border relative overflow-hidden transition-colors duration-500",
-                        firewall.active ? "border-primary/50 shadow-[0_0_30px_-5px_hsl(var(--primary)/0.3)]" : "border-destructive/50 shadow-[0_0_30px_-5px_hsl(var(--destructive)/0.3)]"
-                    )}
-                >
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Shield className="w-32 h-32" />
-                    </div>
-
-                    <div className="relative z-10 flex flex-col h-full justify-between">
-                        <div>
-                            <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
-                                <ShieldCheck className="w-6 h-6" />
-                                FIREWALL STATUS
-                            </h2>
-                            <div className="flex items-center gap-3 mb-6">
-                                <div className={cn("w-3 h-3 rounded-full animate-pulse", firewall.active ? "bg-primary shadow-[0_0_10px_hsl(var(--primary))]" : "bg-destructive shadow-[0_0_10px_hsl(var(--destructive))]")} />
-                                <span className="text-2xl font-mono tracking-wider font-bold">
-                                    {firewall.active ? "ACTIVE ENFORCEMENT" : "SYSTEM BYPASSED"}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-4">
-                            <button
-                                disabled={isLoading}
-                                onClick={handleToggleFirewall}
-                                className={cn(
-                                    "flex-1 py-3 px-4 rounded-lg font-bold uppercase tracking-widest transition-all text-sm flex items-center justify-center gap-2",
-                                    firewall.active
-                                        ? "bg-destructive/20 text-destructive hover:bg-destructive/30 border border-destructive/50"
-                                        : "bg-primary/20 text-primary hover:bg-primary/30 border border-primary/50"
-                                )}
-                            >
-                                <Power className="w-4 h-4" />
-                                {firewall.active ? "Deactivate" : "Activate"}
-                            </button>
-
-                            <button
-                                onClick={handleToggleAutoBlock}
-                                className={cn(
-                                    "flex-1 py-3 px-4 rounded-lg font-bold uppercase tracking-widest transition-all text-sm flex items-center justify-center gap-2",
-                                    firewall.autoBlock
-                                        ? "bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 border border-teal-500/50"
-                                        : "bg-muted/50 text-muted-foreground hover:bg-muted border border-border"
-                                )}
-                            >
-                                <Zap className="w-4 h-4" />
-                                Auto-Block: {firewall.autoBlock ? "ON" : "OFF"}
-                            </button>
-
-                            <button
-                                onClick={handleTogglePanic}
-                                className={cn(
-                                    "flex-1 py-3 px-4 rounded-lg font-bold uppercase tracking-widest transition-all text-sm flex items-center justify-center gap-2",
-                                    firewall.panicMode
-                                        ? "bg-destructive text-white hover:bg-destructive/90 shadow-[0_0_15px_hsl(var(--destructive))]"
-                                        : "bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20"
-                                )}
-                            >
-                                <ShieldAlert className="w-4 h-4" />
-                                {firewall.panicMode ? "LOCKDOWN" : "PANIC"}
-                            </button>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Stats Cards */}
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="glass-card p-4 rounded-xl border border-white/5 flex flex-col justify-center items-center">
-                    <Ban className="w-8 h-8 text-destructive mb-2" />
-                    <span className="text-4xl font-bold text-white">{firewall.blockedIPs.length}</span>
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Blocked IPs</span>
-                </motion.div>
-
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="glass-card p-4 rounded-xl border border-white/5 flex flex-col justify-center items-center">
-                    <Lock className="w-8 h-8 text-orange-400 mb-2" />
-                    <span className="text-4xl font-bold text-white">{firewall.blockedPorts.length}</span>
-                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Blocked Ports</span>
-                </motion.div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-                {/* IP Control */}
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="glass-card p-6 rounded-xl border border-white/10">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Ban className="w-5 h-5 text-destructive" />
-                        IP Enforcement
-                    </h3>
-
-                    <form onSubmit={handleBlockIP} className="flex gap-2 mb-6">
-                        <input
-                            type="text"
-                            placeholder="Enter IP Address..."
-                            value={ipInput}
-                            onChange={(e) => setIpInput(e.target.value)}
-                            className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white font-mono"
-                        />
-                        <button type="submit" className="bg-destructive/20 text-destructive border border-destructive/50 px-4 py-2 rounded hover:bg-destructive/30 transition-colors uppercase text-xs font-bold">
-                            Block
-                        </button>
-                    </form>
-
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <AnimatePresence>
-                            {firewall.blockedIPs.map((ip) => (
-                                <motion.div
-                                    key={ip}
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 group hover:border-destructive/30 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 rounded-full bg-destructive" />
-                                        <span className="font-mono text-sm">{ip}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => handleUnblockIP(ip)}
-                                        className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Unlock className="w-4 h-4" />
-                                    </button>
-                                </motion.div>
-                            ))}
-                            {firewall.blockedIPs.length === 0 && (
-                                <div className="text-center py-8 text-muted-foreground text-sm">No IPs blocked</div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </motion.div>
-
-                {/* Port Control */}
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="glass-card p-6 rounded-xl border border-white/10">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-orange-400" />
-                        Port Control
-                    </h3>
-
-                    <form onSubmit={handleBlockPort} className="flex gap-2 mb-6">
-                        <input
-                            type="number"
-                            placeholder="Enter Port..."
-                            value={portInput}
-                            onChange={(e) => setPortInput(e.target.value)}
-                            className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary/50 text-white font-mono"
-                        />
-                        <button type="submit" className="bg-orange-500/20 text-orange-500 border border-orange-500/50 px-4 py-2 rounded hover:bg-orange-500/30 transition-colors uppercase text-xs font-bold">
-                            Block
-                        </button>
-                    </form>
-
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                        <AnimatePresence>
-                            {firewall.blockedPorts.map((port) => (
-                                <motion.div
-                                    key={port}
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    className="flex items-center justify-between p-3 bg-white/5 rounded border border-white/5 group hover:border-orange-500/30 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-2 h-2 rounded-full bg-orange-500" />
-                                        <span className="font-mono text-sm">Port {port}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => handleUnblockPort(port)}
-                                        className="p-1.5 rounded hover:bg-white/10 text-muted-foreground hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Unlock className="w-4 h-4" />
-                                    </button>
-                                </motion.div>
-                            ))}
-                            {firewall.blockedPorts.length === 0 && (
-                                <div className="text-center py-8 text-muted-foreground text-sm">No ports blocked</div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </motion.div>
-
-                {/* Geo Blocking */}
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card p-6 rounded-xl border border-white/10 md:col-span-2">
-                    <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Ban className="w-5 h-5 text-purple-400" />
-                        Geo-Blocking Enforcement
-                    </h3>
-
-                    <div className="flex gap-6">
-                        <form onSubmit={handleBlockCountry} className="flex-1">
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    placeholder="Enter Country Code (e.g. CN, RU)..."
-                                    value={countryInput}
-                                    onChange={(e) => setCountryInput(e.target.value)}
-                                    className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-purple-500/50 text-white font-mono uppercase"
-                                    maxLength={2}
-                                />
-                                <button type="submit" className="bg-purple-500/20 text-purple-400 border border-purple-500/50 px-4 py-2 rounded hover:bg-purple-500/30 transition-colors uppercase text-xs font-bold">
-                                    Block Country
-                                </button>
-                            </div>
-                        </form>
-
-                        <div className="flex-1 flex flex-wrap gap-2">
-                            <AnimatePresence>
-                                {firewall.blockedCountries.map((code) => (
-                                    <motion.div
-                                        key={code}
-                                        initial={{ opacity: 0, scale: 0.8 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0 }}
-                                        className="bg-purple-500/20 border border-purple-500/40 text-purple-200 px-3 py-1 rounded flex items-center gap-2"
-                                    >
-                                        <span className="font-bold">{code}</span>
-                                        <button onClick={() => handleUnblockCountry(code)} className="hover:text-white">
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
-                                    </motion.div>
-                                ))}
-                                {firewall.blockedCountries.length === 0 && (
-                                    <div className="text-sm text-muted-foreground italic self-center">No active geographic blocks</div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                </motion.div>
-            </div>
-
-            {/* Live Stream Context */}
-            <div className="glass-card p-4 rounded-xl border border-white/10">
-                <h3 className="text-sm font-bold uppercase text-muted-foreground mb-4">Live Firewall Actions</h3>
-                <div className="space-y-1 font-mono text-xs">
-                    {logs
-                        .filter(log => log.message.includes("Firewall"))
-                        .slice(0, 5)
-                        .map(log => (
-                            <div key={log.id} className="flex gap-2">
-                                <span className="text-primary opacity-50">[{log.timestamp}]</span>
-                                <span className="text-primary/90">{log.message}</span>
-                            </div>
-                        ))}
-                    {logs.filter(log => log.message.includes("Firewall")).length === 0 && (
-                        <div className="text-muted-foreground italic">No recent firewall events</div>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Lock className="w-6 h-6 text-primary" />
+            Allowlisted Remote Firewall Control
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Per-endpoint Windows Firewall enforcement via Firestore desired-policy &amp; agent acknowledgement
+          </p>
         </div>
-    );
+
+        <span
+          className={cn(
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono border",
+            selectedEndpoint?.firewallEnabled
+              ? "border-success/30 bg-success/10 text-success"
+              : "border-border bg-muted/40 text-muted-foreground"
+          )}
+        >
+          {selectedEndpoint ? (
+            selectedEndpoint.firewallEnabled ? (
+              <>
+                <ShieldCheck className="w-3.5 h-3.5" />
+                HOST FIREWALL ON ({selectedEndpoint.hostname})
+              </>
+            ) : (
+              <>
+                <ShieldAlert className="w-3.5 h-3.5 text-warning" />
+                HOST FIREWALL OFF / UNKNOWN
+              </>
+            )
+          ) : (
+            "NO ENDPOINT SELECTED"
+          )}
+        </span>
+      </div>
+
+      {endpoints.length === 0 ? (
+        <div className="glass-card rounded-xl p-8 border border-border/60 text-center space-y-3">
+          <Server className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
+          <h2 className="text-base font-semibold text-foreground">No Windows Endpoints Enrolled</h2>
+          <p className="text-sm text-muted-foreground max-w-lg mx-auto">
+            Enroll a Windows endpoint first to inspect its real Windows Firewall status and queue
+            allowlisted <code className="font-mono">SentinelSOC_Managed_*</code> outbound IP rules.
+          </p>
+          <Button asChild size="sm">
+            <Link to="/dashboard/connect-endpoint" className="gap-2">
+              Connect Windows Endpoint
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* Endpoint Selector & Quick Status */}
+          <div className="glass-card rounded-xl p-5 border border-border/60 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <label htmlFor="fw-endpoint-select" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Target Endpoint:
+              </label>
+              <select
+                id="fw-endpoint-select"
+                value={selectedEndpointId}
+                onChange={(e) => setSelectedEndpointId(e.target.value)}
+                className="bg-background border border-border rounded-lg px-3 py-2 text-sm font-medium text-foreground"
+              >
+                {endpoints.map((ep) => (
+                  <option key={ep.endpointId} value={ep.endpointId}>
+                    {ep.hostname} ({ep.computedStatus.toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={submitting || !selectedEndpoint}
+              onClick={() => submitPolicy("query_status")}
+              className="gap-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Query Managed Rules
+            </Button>
+          </div>
+
+          {/* Safe Policy Creation Form */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="glass-card rounded-xl p-6 border border-border/60 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Ban className="w-4 h-4 text-destructive" />
+                Queue Outbound IP Block / Unblock Policy
+              </h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Policies are validated by the Windows agent against a strict allowlist (public IPs
+                only, explicit approval + TTL expiry, only{" "}
+                <code className="font-mono">SentinelSOC_Managed_*</code> rules). Private/loopback IPs
+                and arbitrary commands are rejected.
+              </p>
+
+              <div className="space-y-3">
+                <Input
+                  value={targetIp}
+                  onChange={(e) => setTargetIp(e.target.value)}
+                  placeholder="Target Public IPv4/IPv6 (e.g. 203.0.113.50)"
+                />
+                <Input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Justification / Incident ID"
+                />
+                <div className="flex items-center gap-3">
+                  <select
+                    aria-label="Policy expiry"
+                    value={ttlMinutes}
+                    onChange={(e) => setTtlMinutes(Number(e.target.value))}
+                    className="h-9 px-3 rounded-md border border-border bg-background text-xs"
+                  >
+                    <option value={60}>Expires in 1 hour</option>
+                    <option value={1440}>Expires in 24 hours</option>
+                    <option value={10080}>Expires in 7 days</option>
+                  </select>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => submitPolicy("block_ip")}
+                    className="gap-1.5"
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                    Block IP
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={submitting}
+                    onClick={() => submitPolicy("unblock_ip")}
+                    className="gap-1.5"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    Unblock IP
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Agent Enforcement Acknowledgements */}
+            <div className="glass-card rounded-xl p-6 border border-border/60 space-y-4">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-success" />
+                Endpoint Enforcement Results (Policy Acks)
+              </h2>
+              {acks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic py-6 text-center">
+                  No policy acknowledgements reported by {selectedEndpoint?.hostname} yet.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {acks.map((ack) => (
+                    <div key={ack.id} className="p-3 rounded-lg bg-muted/40 border border-border/60 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-mono">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded font-bold uppercase text-[10px]",
+                            ack.state === "applied"
+                              ? "bg-success/15 text-success"
+                              : "bg-destructive/15 text-destructive"
+                          )}
+                        >
+                          {ack.state}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {ack.acknowledgedAt.toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="font-mono text-muted-foreground">{ack.policyId}</p>
+                      <p className="text-foreground break-words">{ack.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Desired Policies List */}
+          <div className="glass-card rounded-xl p-6 border border-border/60 space-y-3">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <Shield className="w-4 h-4 text-primary" />
+              Queued Policies for {selectedEndpoint?.hostname}
+            </h2>
+            {policies.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No firewall policies queued for this endpoint.</p>
+            ) : (
+              <div className="divide-y divide-border/50">
+                {policies.map((pol) => (
+                  <div key={pol.id} className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-mono font-bold text-foreground">
+                        {pol.action.toUpperCase()} {pol.targetIp || ""}
+                      </p>
+                      <p className="text-muted-foreground">{pol.reason}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1 text-muted-foreground font-mono">
+                        <Clock className="w-3 h-3" />
+                        Expires {pol.expiresAt.toLocaleString()}
+                      </span>
+                      {pol.action === "block_ip" && pol.targetIp && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={submitting}
+                          onClick={() => submitPolicy("unblock_ip", pol.targetIp || undefined)}
+                        >
+                          Remove Block
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
 
 export default FirewallPage;

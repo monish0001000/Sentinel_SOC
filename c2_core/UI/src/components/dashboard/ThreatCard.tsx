@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Threat } from "@/data/mockData";
 
 interface ThreatCardProps {
-  threat: Threat;
+  threat: Partial<Threat> & { isNew?: boolean; message?: string; level?: string };
   index: number;
   compact?: boolean;
 }
@@ -37,14 +37,21 @@ export const ThreatCard = ({ threat, index, compact = false }: ThreatCardProps) 
     },
   };
 
-  const actionConfig = {
+  const actionConfig: Record<string, string> = {
     blocked: "action-blocked",
     allowed: "action-allowed",
     "rate-limited": "action-rate-limited",
   };
 
-  const config = severityConfig[threat.severity];
+  const normalizedSeverity = (threat.severity && threat.severity in severityConfig
+    ? threat.severity
+    : "medium") as keyof typeof severityConfig;
+  const config = severityConfig[normalizedSeverity];
   const Icon = config.icon;
+  const displayType = threat.type || threat.level || "Security Event";
+  const displaySource = threat.sourceIp || "Source unavailable";
+  const displayDesc = threat.description || threat.message || "No description supplied.";
+  const displayAction = threat.actionTaken || "allowed";
 
   if (compact) {
     return (
@@ -55,7 +62,7 @@ export const ThreatCard = ({ threat, index, compact = false }: ThreatCardProps) 
         className={cn(
           "p-3 rounded-lg glass-card border transition-all hover:bg-card/60 cursor-pointer group",
           config.border,
-          threat.severity === "critical" && "threat-pulse"
+          normalizedSeverity === "critical" && "threat-pulse"
         )}
       >
         <div className="flex items-center justify-between">
@@ -65,12 +72,12 @@ export const ThreatCard = ({ threat, index, compact = false }: ThreatCardProps) 
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground">{threat.type}</span>
+                <span className="text-sm font-medium text-foreground">{displayType}</span>
                 <span className={cn("severity-badge", config.bg, config.color)}>
-                  {threat.severity}
+                  {normalizedSeverity}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground font-mono">{threat.sourceIp}</p>
+              <p className="text-xs text-muted-foreground font-mono">{displaySource}</p>
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -79,63 +86,61 @@ export const ThreatCard = ({ threat, index, compact = false }: ThreatCardProps) 
     );
   }
 
-  const isNew = (threat as any).isNew;
-
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1 }}
+      transition={{ delay: index * 0.08 }}
       className={cn(
         "p-4 rounded-lg glass-card border transition-all hover:bg-card/60",
         config.border,
-        threat.severity === "critical" && "threat-pulse",
-        isNew && "update-glow"
+        normalizedSeverity === "critical" && "threat-pulse",
+        threat.isNew && "update-glow"
       )}
     >
-      {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={cn("p-2 rounded-lg", config.bg)}>
             <Icon className={cn("w-5 h-5", config.color)} />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">{threat.type}</h3>
-            <p className="text-xs text-muted-foreground font-mono">{threat.sourceIp}</p>
+            <h3 className="font-semibold text-foreground">{displayType}</h3>
+            <p className="text-xs text-muted-foreground font-mono">{displaySource}</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className={cn("severity-badge", config.bg, config.color)}>
-            {threat.severity}
+            {normalizedSeverity}
           </span>
-          <span className={cn("action-badge", actionConfig[threat.actionTaken])}>
-            {threat.actionTaken}
+          <span className={cn("action-badge", actionConfig[displayAction] || "action-allowed")}>
+            {displayAction}
           </span>
         </div>
       </div>
 
-      {/* Description */}
-      <p className="text-sm text-muted-foreground mb-3">{threat.description}</p>
+      <p className="text-sm text-muted-foreground mb-3">{displayDesc}</p>
 
-      {/* AI Confidence & Explanation */}
-      <div className="p-2.5 rounded-md bg-muted/30 border border-border/50 mb-3">
-        <div className="flex items-center gap-2 mb-1.5">
-          <Brain className="w-3.5 h-3.5 text-primary" />
-          <span className="text-xs font-medium text-foreground">AI Analysis</span>
-          <span className="text-xs font-mono text-primary ml-auto">
-            {threat.aiConfidence}% confidence
-          </span>
+      {threat.aiExplanation && (
+        <div className="p-2.5 rounded-md bg-muted/30 border border-border/50 mb-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Brain className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-medium text-foreground">Detection Context</span>
+            {typeof threat.aiConfidence === "number" && (
+              <span className="text-xs font-mono text-primary ml-auto">
+                {threat.aiConfidence}% confidence
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground font-mono leading-relaxed">
+            {threat.aiExplanation}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground font-mono leading-relaxed">
-          {threat.aiExplanation}
-        </p>
-      </div>
+      )}
 
-      {/* Metadata */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
-          <span className="font-mono">{threat.timestamp}</span>
+          <span className="font-mono">{threat.timestamp || "Time unavailable"}</span>
         </div>
         {threat.location && (
           <div className="flex items-center gap-1">

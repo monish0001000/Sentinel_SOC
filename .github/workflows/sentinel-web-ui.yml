@@ -1,0 +1,32 @@
+name: Sentinel web UI build
+
+on:
+  push:
+    branches:
+      - "feature/firebase-web-edr-mvp"
+  pull_request:
+    branches:
+      - "repair/**"
+    paths:
+      - "c2_core/UI/**"
+      - ".github/workflows/sentinel-web-ui.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: c2_core/UI
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: c2_core/UI/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build production UI
+        run: npm run build

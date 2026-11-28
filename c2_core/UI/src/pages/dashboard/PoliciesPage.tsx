@@ -1,260 +1,146 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Plus, Trash2, ArrowRight, Save, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-
-const API_URL = "http://localhost:8000";
-
-interface Policy {
-    id: string;
-    name: string;
-    source_zone: string;
-    dest_zone: string;
-    source_ip: string;
-    app: string;
-    process_name: string;
-    action: "allow" | "deny";
-    hits: number;
-}
-
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Shield, ArrowRight, Clock, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
+import { isFirebaseConfigured } from "@/lib/firebase";
+import {
+  DesiredFirewallPolicyRecord,
+  EndpointRecord,
+  FirewallPolicyAck,
+  subscribeEndpointPolicies,
+  subscribeEndpoints,
+  subscribePolicyAcks,
+} from "@/lib/sentinelFirebaseRepo";
+import { cn } from "@/lib/utils";
 
 const PoliciesPage = () => {
-    const { firewall } = useWebSocket();
-    const [policies, setPolicies] = useState<Policy[]>([]);
-    const [isAdding, setIsAdding] = useState(false);
-    const [newPolicy, setNewPolicy] = useState({
-        name: "New Policy",
-        source_zone: "Any",
-        dest_zone: "Any",
-        source_ip: "Any",
-        app: "Any",
-        process_name: "Any",
-        action: "deny"
+  const { user } = useAuth();
+  const [endpoints, setEndpoints] = useState<EndpointRecord[]>([]);
+  const [policiesByEp, setPoliciesByEp] = useState<Record<string, DesiredFirewallPolicyRecord[]>>({});
+  const [acksByEp, setAcksByEp] = useState<Record<string, FirewallPolicyAck[]>>({});
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid) {
+      setEndpoints([]);
+      return;
+    }
+    return subscribeEndpoints(user.uid, setEndpoints);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured || !user?.uid || endpoints.length === 0) {
+      setPoliciesByEp({});
+      setAcksByEp({});
+      return;
+    }
+    const unsubs: (() => void)[] = [];
+    endpoints.forEach((ep) => {
+      unsubs.push(
+        subscribeEndpointPolicies(user.uid, ep.endpointId, (list) => {
+          setPoliciesByEp((prev) => ({ ...prev, [ep.endpointId]: list }));
+        })
+      );
+      unsubs.push(
+        subscribePolicyAcks(user.uid, ep.endpointId, (list) => {
+          setAcksByEp((prev) => ({ ...prev, [ep.endpointId]: list }));
+        })
+      );
     });
+    return () => unsubs.forEach((u) => u());
+  }, [user?.uid, endpoints]);
 
-    const fetchPolicies = async () => {
-        try {
-            const token = localStorage.getItem("sentinel_token");
-            if (!token) {
-                window.location.href = "/login";
-                return;
-            }
+  const allPolicies = Object.values(policiesByEp)
+    .flat()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const allAcks = Object.values(acksByEp).flat();
 
-            const res = await fetch(`${API_URL}/firewall/policies`, {
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-
-            if (res.status === 401) {
-                window.location.href = "/login";
-                return;
-            }
-
-            if (!res.ok) throw new Error("Failed to fetch policies");
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setPolicies(data);
-            } else {
-                setPolicies([]);
-            }
-        } catch (e) {
-            console.error("Failed to fetch policies");
-            setPolicies([]);
-        }
-    };
-
-    useEffect(() => {
-        fetchPolicies();
-    }, []);
-
-    // Sync with WebSocket Data
-    useEffect(() => {
-        if (firewall.policies && firewall.policies.length > 0) {
-            setPolicies(firewall.policies);
-        }
-    }, [firewall.policies]);
-
-    const handleAddPolicy = async () => {
-        try {
-            const token = localStorage.getItem("sentinel_token");
-            if (!token) {
-                window.location.href = "/login";
-                return;
-            }
-
-            const res = await fetch(`${API_URL}/firewall/policies`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify(newPolicy),
-            });
-
-            if (res.status === 401) {
-                toast.error("Session expired");
-                window.location.href = "/login";
-                return;
-            }
-
-            if (res.ok) {
-                toast.success("Policy Created");
-                setIsAdding(false);
-                fetchPolicies();
-            } else {
-                toast.error("Failed to create policy");
-            }
-        } catch (e) {
-            toast.error("Error creating policy");
-        }
-    };
-
-    const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this policy?")) return;
-        try {
-            const token = localStorage.getItem("sentinel_token");
-            if (!token) {
-                window.location.href = "/login";
-                return;
-            }
-
-            const res = await fetch(`${API_URL}/firewall/policies/${id}`, {
-                method: "DELETE",
-                headers: { "Authorization": `Bearer ${token}` }
-            });
-
-            if (res.status === 401) {
-                toast.error("Session expired");
-                window.location.href = "/login";
-                return;
-            }
-
-            if (res.ok) {
-                toast.success("Policy Deleted");
-                fetchPolicies();
-            }
-        } catch (e) {
-            toast.error("Error deleting policy");
-        }
-    };
-
-    return (
-        <div className="space-y-6 text-foreground p-6">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Shield className="w-8 h-8 text-primary" />
-                        Security Policies (Zero Trust)
-                    </h1>
-                    <p className="text-muted-foreground">Manage Next-Gen Firewall traffic rules.</p>
-                </div>
-                <button
-                    onClick={() => setIsAdding(true)}
-                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90"
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Policy
-                </button>
-            </div>
-
-            <div className="glass-card rounded-xl border border-white/10 overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 p-4 bg-muted/20 font-bold text-sm uppercase tracking-wider text-muted-foreground border-b border-white/10">
-                    <div className="col-span-2">Name</div>
-                    <div className="col-span-1">Src</div>
-                    <div className="col-span-1">Dst</div>
-                    <div className="col-span-2">App</div>
-                    <div className="col-span-3">Process Identity</div>
-                    <div className="col-span-1">Action</div>
-                    <div className="col-span-1">Hits</div>
-                    <div className="col-span-1"></div>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                    <AnimatePresence>
-                        {isAdding && (
-                            <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="grid grid-cols-12 gap-2 p-4 bg-primary/5 items-center"
-                            >
-                                <div className="col-span-2">
-                                    <input className="bg-transparent border-b border-white/20 w-full focus:outline-none" value={newPolicy.name} onChange={e => setNewPolicy({ ...newPolicy, name: e.target.value })} />
-                                </div>
-                                <div className="col-span-1">
-                                    <select className="bg-transparent border-b border-white/20 w-full text-xs" value={newPolicy.source_zone} onChange={e => setNewPolicy({ ...newPolicy, source_zone: e.target.value })}>
-                                        <option value="Any">Any</option>
-                                        <option value="Trust">Trust</option>
-                                        <option value="Untrust">Untrust</option>
-                                    </select>
-                                </div>
-                                <div className="col-span-1">
-                                    <select className="bg-transparent border-b border-white/20 w-full text-xs" value={newPolicy.dest_zone} onChange={e => setNewPolicy({ ...newPolicy, dest_zone: e.target.value })}>
-                                        <option value="Any">Any</option>
-                                        <option value="Trust">Trust</option>
-                                        <option value="Untrust">Untrust</option>
-                                        <option value="DMZ">DMZ</option>
-                                    </select>
-                                </div>
-                                <div className="col-span-2">
-                                    <input className="bg-transparent border-b border-white/20 w-full" placeholder="App (e.g. ssh)" value={newPolicy.app} onChange={e => setNewPolicy({ ...newPolicy, app: e.target.value })} />
-                                </div>
-                                <div className="col-span-3">
-                                    <input className="bg-transparent border-b border-white/20 w-full text-blue-300" placeholder="Process (e.g. chrome.exe)" value={newPolicy.process_name} onChange={e => setNewPolicy({ ...newPolicy, process_name: e.target.value })} />
-                                </div>
-                                <div className="col-span-1">
-                                    <select className="bg-transparent border-b border-white/20 w-full" value={newPolicy.action} onChange={e => setNewPolicy({ ...newPolicy, action: e.target.value as any })}>
-                                        <option value="allow">Allow</option>
-                                        <option value="deny">Deny</option>
-                                    </select>
-                                </div>
-                                <div className="col-span-1 text-muted-foreground">-</div>
-                                <div className="col-span-1 flex gap-2">
-                                    <button onClick={handleAddPolicy} className="p-1 hover:text-green-400"><Save className="w-4 h-4" /></button>
-                                    <button onClick={() => setIsAdding(false)} className="p-1 hover:text-red-400"><X className="w-4 h-4" /></button>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {policies.map((policy) => (
-                            <motion.div
-                                key={policy.id}
-                                layout
-                                className="grid grid-cols-12 gap-2 p-4 items-center hover:bg-white/5 transition-colors group"
-                            >
-                                <div className="col-span-2 font-medium truncate" title={policy.name}>{policy.name}</div>
-                                <div className="col-span-1 flex items-center gap-2 text-xs">
-                                    <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 truncate">{policy.source_zone}</span>
-                                </div>
-                                <div className="col-span-1 flex items-center gap-2 text-xs">
-                                    <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 truncate">{policy.dest_zone}</span>
-                                </div>
-                                <div className="col-span-2 text-sm opacity-80 truncate">{policy.app}</div>
-                                <div className="col-span-3 text-sm text-blue-200 font-mono truncate" title={policy.process_name || "Any"}>
-                                    {policy.process_name || "Any"}
-                                </div>
-                                <div className="col-span-1">
-                                    <span className={cn(
-                                        "px-2 py-1 rounded text-xs font-bold uppercase",
-                                        policy.action === "allow" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-                                    )}>
-                                        {policy.action}
-                                    </span>
-                                </div>
-                                <div className="col-span-1 font-mono text-sm opacity-60">{policy.hits}</div>
-                                <div className="col-span-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleDelete(policy.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded transition-colors">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                </div>
-            </div>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Shield className="w-6 h-6 text-primary" />
+            Firewall Policy Engine
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Allowlisted per-endpoint policies and Windows agent enforcement status
+          </p>
         </div>
-    );
+
+        <Button asChild size="sm">
+          <Link to="/dashboard/firewall" className="gap-2">
+            Manage Firewall Policies
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </Button>
+      </div>
+
+      {allPolicies.length === 0 ? (
+        <div className="glass-card rounded-xl p-8 border border-border/60 space-y-3 text-center">
+          <Shield className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
+          <h2 className="text-base font-semibold text-foreground">No Endpoint Policies Queued</h2>
+          <p className="text-sm text-muted-foreground max-w-xl mx-auto">
+            {endpoints.length === 0
+              ? "Enroll a Windows endpoint first, then queue allowlisted outbound policies from Firewall Control."
+              : "No firewall policies have been created for your enrolled endpoints yet."}
+          </p>
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl border border-border/60 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-muted/40 text-muted-foreground uppercase border-b border-border/60">
+                <tr>
+                  <th className="p-3">Endpoint</th>
+                  <th className="p-3">Action</th>
+                  <th className="p-3">Target IP</th>
+                  <th className="p-3">Reason</th>
+                  <th className="p-3">Expires</th>
+                  <th className="p-3">Agent Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {allPolicies.map((pol) => {
+                  const ep = endpoints.find((e) => e.endpointId === pol.targetEndpointId);
+                  const ack = allAcks.find((a) => a.policyId === pol.id);
+                  return (
+                    <tr key={pol.id} className="hover:bg-accent/30">
+                      <td className="p-3 font-semibold">{ep?.hostname || pol.targetEndpointId.slice(0, 10)}</td>
+                      <td className="p-3 uppercase">{pol.action}</td>
+                      <td className="p-3 text-primary">{pol.targetIp || "—"}</td>
+                      <td className="p-3">{pol.reason}</td>
+                      <td className="p-3 text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {pol.expiresAt.toLocaleString()}
+                      </td>
+                      <td className="p-3">
+                        {ack ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 px-2 py-0.5 rounded uppercase text-[10px] font-bold",
+                              ack.state === "applied"
+                                ? "bg-success/15 text-success"
+                                : "bg-destructive/15 text-destructive"
+                            )}
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            {ack.state}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">PENDING</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default PoliciesPage;
