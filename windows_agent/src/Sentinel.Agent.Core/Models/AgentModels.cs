@@ -11,7 +11,7 @@ public sealed class AgentConfig
     public string? FirestoreEmulatorHost { get; set; }
     public string? AuthEmulatorHost { get; set; }
 
-    public int HeartbeatIntervalSeconds { get; set; } = 60;
+    public int HeartbeatIntervalSeconds { get; set; } = 15;
     public int HistoricalSampleIntervalSeconds { get; set; } = 300;
     public int FimScanIntervalSeconds { get; set; } = 900;
     public int PolicyPollIntervalSeconds { get; set; } = 60;
@@ -85,6 +85,7 @@ public sealed class NetworkConnectionSummary
     public string State { get; set; } = string.Empty;
     public int? ProcessId { get; set; }
     public string? ProcessName { get; set; }
+    public string? RemoteHost { get; set; }
 }
 
 public sealed class SecurityAlert

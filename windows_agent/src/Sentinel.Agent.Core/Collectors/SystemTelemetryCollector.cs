@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -211,31 +214,183 @@ public sealed class SystemTelemetryCollector
         return (txRate, rxRate, summaries.Take(10).ToList());
     }
 
+    private static readonly ConcurrentDictionary<string, string> ReverseDnsCache = new();
+
     private static List<NetworkConnectionSummary> CollectActiveConnections(int maxEntries)
     {
         var results = new List<NetworkConnectionSummary>();
+        var pidNames = new Dictionary<int, string>();
+
         try
         {
-            var tcpConnections = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpConnections();
-            foreach (var conn in tcpConnections.Take(maxEntries))
+            var tcpRows = GetTcpTableWithOwningPid();
+            var ordered = tcpRows
+                .OrderByDescending(r => r.State == "Established")
+                .ThenBy(r => IsLoopbackAddress(r.RemoteAddress))
+                .Take(maxEntries);
+
+            foreach (var row in ordered)
             {
+                if (!pidNames.TryGetValue(row.ProcessId, out var procName))
+                {
+                    procName = ResolveProcessName(row.ProcessId);
+                    pidNames[row.ProcessId] = procName;
+                }
+
                 results.Add(new NetworkConnectionSummary
                 {
                     Protocol = "TCP",
-                    LocalAddress = conn.LocalEndPoint.Address.ToString(),
-                    LocalPort = conn.LocalEndPoint.Port,
-                    RemoteAddress = conn.RemoteEndPoint.Address.ToString(),
-                    RemotePort = conn.RemoteEndPoint.Port,
-                    State = conn.State.ToString()
+                    LocalAddress = row.LocalAddress,
+                    LocalPort = row.LocalPort,
+                    RemoteAddress = row.RemoteAddress,
+                    RemotePort = row.RemotePort,
+                    RemoteHost = ResolveRemoteHostCached(row.RemoteAddress),
+                    State = row.State,
+                    ProcessId = row.ProcessId,
+                    ProcessName = procName
                 });
             }
         }
         catch
         {
-            // Non-fatal if network stack query fails
+            // Fallback to IPGlobalProperties if GetExtendedTcpTable fails
+            try
+            {
+                var tcpConnections = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpConnections();
+                foreach (var conn in tcpConnections.Take(maxEntries))
+                {
+                    var remoteIp = conn.RemoteEndPoint.Address.ToString();
+                    results.Add(new NetworkConnectionSummary
+                    {
+                        Protocol = "TCP",
+                        LocalAddress = conn.LocalEndPoint.Address.ToString(),
+                        LocalPort = conn.LocalEndPoint.Port,
+                        RemoteAddress = remoteIp,
+                        RemotePort = conn.RemoteEndPoint.Port,
+                        RemoteHost = ResolveRemoteHostCached(remoteIp),
+                        State = conn.State.ToString()
+                    });
+                }
+            }
+            catch
+            {
+                // Non-fatal if network stack query fails
+            }
         }
         return results;
     }
+
+    private static string ResolveProcessName(int pid)
+    {
+        if (pid <= 0) return "System";
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            return proc.ProcessName;
+        }
+        catch
+        {
+            return $"pid-{pid}";
+        }
+    }
+
+    private static bool IsLoopbackAddress(string ip) =>
+        ip == "127.0.0.1" || ip == "::1" || ip == "0.0.0.0" || ip == "::";
+
+    private static string ResolveRemoteHostCached(string ipStr)
+    {
+        if (string.IsNullOrWhiteSpace(ipStr) || IsLoopbackAddress(ipStr))
+            return string.Empty;
+
+        if (ReverseDnsCache.TryGetValue(ipStr, out var cached))
+            return cached;
+
+        if (ReverseDnsCache.Count > 512)
+            ReverseDnsCache.Clear();
+
+        string resolved = string.Empty;
+        try
+        {
+            if (IPAddress.TryParse(ipStr, out var ip) && !IPAddress.IsLoopback(ip))
+            {
+                var task = Dns.GetHostEntryAsync(ip);
+                if (task.Wait(150))
+                    resolved = task.Result.HostName ?? string.Empty;
+            }
+        }
+        catch
+        {
+            resolved = string.Empty;
+        }
+
+        ReverseDnsCache[ipStr] = resolved;
+        return resolved;
+    }
+
+    private sealed record TcpPidRow(string LocalAddress, int LocalPort, string RemoteAddress, int RemotePort, string State, int ProcessId);
+
+    private static List<TcpPidRow> GetTcpTableWithOwningPid()
+    {
+        var list = new List<TcpPidRow>();
+        int bufferSize = 0;
+        const int AF_INET = 2;
+        const int TCP_TABLE_OWNER_PID_ALL = 5;
+
+        _ = GetExtendedTcpTable(IntPtr.Zero, ref bufferSize, true, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
+        if (bufferSize <= 0) return list;
+
+        IntPtr tcpTablePtr = Marshal.AllocHGlobal(bufferSize);
+        try
+        {
+            uint ret = GetExtendedTcpTable(tcpTablePtr, ref bufferSize, true, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
+            if (ret != 0) return list;
+
+            int numEntries = Marshal.ReadInt32(tcpTablePtr);
+            IntPtr rowPtr = IntPtr.Add(tcpTablePtr, 4);
+            int rowSize = Marshal.SizeOf<MIB_TCPROW_OWNER_PID>();
+
+            for (int i = 0; i < numEntries; i++)
+            {
+                var row = Marshal.PtrToStructure<MIB_TCPROW_OWNER_PID>(rowPtr);
+                var stateName = ((TcpState)row.state).ToString();
+                if (row.remoteAddr != 0 && stateName != "Listen")
+                {
+                    var localIp = new IPAddress(row.localAddr).ToString();
+                    var remoteIp = new IPAddress(row.remoteAddr).ToString();
+                    int localPort = (int)(((row.localPort & 0xFF) << 8) | ((row.localPort >> 8) & 0xFF));
+                    int remotePort = (int)(((row.remotePort & 0xFF) << 8) | ((row.remotePort >> 8) & 0xFF));
+                    list.Add(new TcpPidRow(localIp, localPort, remoteIp, remotePort, stateName, (int)row.owningPid));
+                }
+                rowPtr = IntPtr.Add(rowPtr, rowSize);
+            }
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(tcpTablePtr);
+        }
+
+        return list;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MIB_TCPROW_OWNER_PID
+    {
+        public uint state;
+        public uint localAddr;
+        public uint localPort;
+        public uint remoteAddr;
+        public uint remotePort;
+        public uint owningPid;
+    }
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedTcpTable(
+        IntPtr pTcpTable,
+        ref int pdwSize,
+        [MarshalAs(UnmanagedType.Bool)] bool bOrder,
+        int ulAf,
+        int tableClass,
+        uint reserved);
 
     public static bool IsWindowsFirewallEnabled()
     {

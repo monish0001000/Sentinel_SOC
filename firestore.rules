@@ -100,7 +100,7 @@ service cloud.firestore {
               'hostname', 'osVersion', 'osBuild', 'agentVersion',
               'lastSeenAt', 'uptimeSeconds', 'status', 'healthState',
               'syncState', 'pendingQueueCount', 'latestMetrics',
-              'networkInterfaces', 'firewallEnabled', 'agentIntegrityHash'
+              'networkInterfaces', 'activeConnections', 'firewallEnabled', 'agentIntegrityHash'
             ])
             && request.resource.data.lastSeenAt is timestamp);
 

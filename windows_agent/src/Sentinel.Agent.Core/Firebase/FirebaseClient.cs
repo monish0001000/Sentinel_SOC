@@ -177,10 +177,32 @@ public sealed class FirebaseClient : IDisposable
         {
             "hostname", "osVersion", "osBuild", "agentVersion", "lastSeenAt",
             "uptimeSeconds", "status", "healthState", "syncState",
-            "pendingQueueCount", "latestMetrics", "firewallEnabled", "agentIntegrityHash"
+            "pendingQueueCount", "latestMetrics", "activeConnections", "firewallEnabled", "agentIntegrityHash"
         }.Select(f => $"updateMask.fieldPaths={f}"));
 
         var url = $"{FirestoreBaseUrl}/users/{Uri.EscapeDataString(identity.OwnerUid)}/endpoints/{Uri.EscapeDataString(identity.EndpointId)}?{mask}";
+
+        var connectionValues = snap.ActiveConnections
+            .Take(25)
+            .Select(c => new
+            {
+                mapValue = new
+                {
+                    fields = new
+                    {
+                        protocol = StringVal(c.Protocol),
+                        localAddress = StringVal(c.LocalAddress),
+                        localPort = IntVal(c.LocalPort),
+                        remoteAddress = StringVal(c.RemoteAddress),
+                        remotePort = IntVal(c.RemotePort),
+                        remoteHost = StringVal(c.RemoteHost ?? string.Empty),
+                        state = StringVal(c.State),
+                        processId = IntVal(c.ProcessId ?? 0),
+                        processName = StringVal(c.ProcessName ?? string.Empty)
+                    }
+                }
+            })
+            .ToArray();
 
         var payload = new
         {
@@ -198,6 +220,13 @@ public sealed class FirebaseClient : IDisposable
                 syncState = StringVal(syncState),
                 pendingQueueCount = IntVal(pendingQueueCount),
                 firewallEnabled = BoolVal(snap.FirewallEnabled),
+                activeConnections = new
+                {
+                    arrayValue = new
+                    {
+                        values = connectionValues
+                    }
+                },
                 latestMetrics = new
                 {
                     mapValue = new

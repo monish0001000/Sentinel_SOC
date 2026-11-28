@@ -5,7 +5,7 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 export const SystemStatusBanner = () => {
   const { connectionStatus, isConfigured: wsConfigured, reconnect } = useWebSocket();
 
-  if (connectionStatus === "connected") {
+  if (connectionStatus === "connected" || isFirebaseConfigured) {
     return null;
   }
 
@@ -15,9 +15,7 @@ export const SystemStatusBanner = () => {
         <div className="flex items-center gap-2 text-foreground/85">
           <Cloud className="w-3.5 h-3.5 text-primary flex-shrink-0" />
           <span>
-            {isFirebaseConfigured
-              ? "Cloud EDR mode active (Firebase Auth & Firestore). Real-time local packet stream is not attached in hosted mode."
-              : "Hosted UI preview mode: Firebase project environment variables and real-time packet stream are not configured."}
+            Hosted UI preview mode: Firebase project environment variables and real-time packet stream are not configured.
           </span>
         </div>
       </div>

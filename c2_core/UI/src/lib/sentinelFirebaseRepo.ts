@@ -20,6 +20,30 @@ export type EndpointComputedStatus =
   | "offline"
   | "error";
 
+export interface EndpointConnectionRecord {
+  protocol: string;
+  localAddress: string;
+  localPort: number;
+  remoteAddress: string;
+  remotePort: number;
+  remoteHost?: string;
+  state: string;
+  processId?: number;
+  processName?: string;
+}
+
+export interface DesiredFirewallPolicyRecord {
+  id: string;
+  targetEndpointId: string;
+  action: string;
+  targetIp?: string | null;
+  direction?: string;
+  reason: string;
+  approved: boolean;
+  createdAt: Date;
+  expiresAt: Date;
+}
+
 export interface EndpointRecord {
   id: string;
   endpointId: string;
@@ -35,6 +59,7 @@ export interface EndpointRecord {
   pendingQueueCount?: number;
   firewallEnabled?: boolean;
   revoked?: boolean;
+  activeConnections?: EndpointConnectionRecord[];
   latestMetrics?: {
     cpuPercent: number;
     memoryPercent: number;
@@ -160,6 +185,19 @@ export function subscribeEndpoints(
           pendingQueueCount: data.pendingQueueCount ?? 0,
           firewallEnabled: data.firewallEnabled,
           revoked: Boolean(data.revoked),
+          activeConnections: Array.isArray(data.activeConnections)
+            ? data.activeConnections.map((c: Record<string, unknown>) => ({
+                protocol: String(c.protocol || "TCP"),
+                localAddress: String(c.localAddress || ""),
+                localPort: Number(c.localPort || 0),
+                remoteAddress: String(c.remoteAddress || ""),
+                remotePort: Number(c.remotePort || 0),
+                remoteHost: c.remoteHost ? String(c.remoteHost) : undefined,
+                state: String(c.state || ""),
+                processId: c.processId !== undefined ? Number(c.processId) : undefined,
+                processName: c.processName ? String(c.processName) : undefined,
+              }))
+            : [],
           latestMetrics: data.latestMetrics,
         };
       });
@@ -349,6 +387,38 @@ export function subscribeEndpointTelemetry(
       })
       .reverse();
     onUpdate(samples);
+  });
+}
+
+export function subscribeEndpointPolicies(
+  ownerUid: string,
+  endpointId: string,
+  onUpdate: (policies: DesiredFirewallPolicyRecord[]) => void
+): Unsubscribe {
+  if (!db) {
+    return () => {};
+  }
+  const q = query(
+    collection(db, "users", ownerUid, "endpoints", endpointId, "policies"),
+    orderBy("createdAt", "desc"),
+    limit(25)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const list: DesiredFirewallPolicyRecord[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        targetEndpointId: String(data.targetEndpointId || endpointId),
+        action: String(data.action || ""),
+        targetIp: data.targetIp ? String(data.targetIp) : null,
+        direction: data.direction ? String(data.direction) : "Outbound",
+        reason: String(data.reason || ""),
+        approved: Boolean(data.approved),
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+        expiresAt: data.expiresAt?.toDate ? data.expiresAt.toDate() : new Date(),
+      };
+    });
+    onUpdate(list);
   });
 }
 

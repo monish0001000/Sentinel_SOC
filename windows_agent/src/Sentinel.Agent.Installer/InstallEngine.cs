@@ -213,7 +213,7 @@ public static class InstallEngine
     {
         using var key = Registry.LocalMachine.CreateSubKey(UninstallRegKey);
         key.SetValue("DisplayName", "Sentinel SOC Windows Endpoint Agent");
-        key.SetValue("DisplayVersion", "1.0.1");
+        key.SetValue("DisplayVersion", "1.0.2");
         key.SetValue("Publisher", "Sentinel SOC");
         key.SetValue("InstallLocation", installDir);
         key.SetValue("UninstallString", $"\"{uninstallerExe}\" --uninstall");

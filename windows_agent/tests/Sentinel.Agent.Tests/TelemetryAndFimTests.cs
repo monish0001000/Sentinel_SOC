@@ -31,6 +31,13 @@ public sealed class TelemetryAndFimTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(snap.OsVersion));
         Assert.False(string.IsNullOrWhiteSpace(snap.OsBuild));
         Assert.NotEmpty(snap.NetworkInterfaces);
+        Assert.All(snap.ActiveConnections, c =>
+        {
+            Assert.Equal("TCP", c.Protocol);
+            Assert.False(string.IsNullOrWhiteSpace(c.LocalAddress));
+            Assert.False(string.IsNullOrWhiteSpace(c.RemoteAddress));
+            Assert.False(string.IsNullOrWhiteSpace(c.ProcessName));
+        });
     }
 
     [Fact]
