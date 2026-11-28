@@ -1,72 +1,93 @@
-name: Build Sentinel Windows Agent Installer
+name: Build Sentinel Windows Agent
 
 on:
   push:
     branches:
       - feature/firebase-web-edr-mvp
     paths:
-      - windows_agent/**
-      - .github/workflows/windows-agent-build.yml
+      - "windows_agent/**"
+      - ".github/workflows/windows-agent-build.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
-jobs:
-  build-windows-agent:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
-        working-directory: windows_agent
+concurrency:
+  group: sentinel-windows-agent-${{ github.ref }}
+  cancel-in-progress: false
 
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - name: Checkout feature branch
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: 8.0.x
 
       - name: Restore solution
-        run: dotnet restore SentinelAgent.sln
+        shell: pwsh
+        run: dotnet restore windows_agent/SentinelAgent.sln
 
-      - name: Run unit tests
-        run: dotnet test tests/Sentinel.Agent.Tests/Sentinel.Agent.Tests.csproj -c Release --no-restore --verbosity normal
+      - name: Run Windows agent unit tests
+        shell: pwsh
+        run: dotnet test windows_agent/tests/Sentinel.Agent.Tests/Sentinel.Agent.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sentinel-agent-tests.trx" --results-directory artifacts/test-results
 
-      - name: Publish Windows Service EXE payload
+      - name: Publish self-contained Windows service
+        shell: pwsh
         run: |
-          dotnet publish src/Sentinel.Agent.Service/Sentinel.Agent.Service.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -o src/Sentinel.Agent.Installer/Payload
+          $serviceOut = Join-Path $env:GITHUB_WORKSPACE "artifacts/service"
+          dotnet publish windows_agent/src/Sentinel.Agent.Service/Sentinel.Agent.Service.csproj --configuration Release --runtime win-x64 --self-contained true --output $serviceOut -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          if (!(Test-Path (Join-Path $serviceOut "Sentinel.Agent.Service.exe"))) { throw "Self-contained service EXE was not produced." }
 
-      - name: Publish Windows Installer EXE
+      - name: Embed service payload into installer
+        shell: pwsh
         run: |
-          dotnet publish src/Sentinel.Agent.Installer/Sentinel.Agent.Installer.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -o dist
+          $payload = Join-Path $env:GITHUB_WORKSPACE "windows_agent/src/Sentinel.Agent.Installer/Payload"
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          Copy-Item "artifacts/service/Sentinel.Agent.Service.exe" (Join-Path $payload "Sentinel.Agent.Service.exe") -Force
 
-      - name: Generate SHA-256 checksum
+      - name: Publish self-contained installer
+        shell: pwsh
         run: |
-          $hash = (Get-FileHash dist/SentinelAgentSetup.exe -Algorithm SHA256).Hash
-          "$hash  SentinelAgentSetup.exe" | Out-File -FilePath dist/SentinelAgentSetup.exe.sha256 -Encoding ascii
-          Get-Content dist/SentinelAgentSetup.exe.sha256
+          $installerOut = Join-Path $env:GITHUB_WORKSPACE "artifacts/installer"
+          dotnet publish windows_agent/src/Sentinel.Agent.Installer/Sentinel.Agent.Installer.csproj --configuration Release --runtime win-x64 --self-contained true --output $installerOut -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          if (!(Test-Path (Join-Path $installerOut "SentinelAgentSetup.exe"))) { throw "Installer EXE was not produced." }
 
-      - name: Upload Installer Artifact
+      - name: Assemble distributable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/package | Out-Null
+          Copy-Item "artifacts/installer/SentinelAgentSetup.exe" "artifacts/package/SentinelAgentSetup.exe"
+          Copy-Item "docs/WINDOWS_AGENT_INSTALLATION.md" "artifacts/package/INSTALLATION.md"
+          Copy-Item "docs/WINDOWS_AGENT_SECURITY.md" "artifacts/package/SECURITY.md"
+          $hash = (Get-FileHash "artifacts/package/SentinelAgentSetup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "artifacts/package/SHA256SUMS.txt" -Value "$hash  SentinelAgentSetup.exe"
+          Compress-Archive -Path "artifacts/package/*" -DestinationPath "artifacts/SentinelAgent-Windows-x64.zip" -Force
+
+      - name: Upload installer and test evidence
         uses: actions/upload-artifact@v4
         with:
-          name: sentinel-windows-agent-installer
+          name: SentinelAgent-Windows-x64-${{ github.sha }}
           path: |
-            windows_agent/dist/SentinelAgentSetup.exe
-            windows_agent/dist/SentinelAgentSetup.exe.sha256
+            artifacts/SentinelAgent-Windows-x64.zip
+            artifacts/package/SentinelAgentSetup.exe
+            artifacts/package/SHA256SUMS.txt
+            artifacts/test-results/*.trx
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SentinelAgent-Windows-build-diagnostics-${{ github.sha }}
+          path: |
+            artifacts/test-results/
+            windows_agent/**/bin/Release/
+          if-no-files-found: ignore
+          retention-days: 7
