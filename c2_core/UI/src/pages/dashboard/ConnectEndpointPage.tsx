@@ -29,23 +29,23 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const WINDOWS_RELEASE = {
-  version: "1.0.2",
+  version: "1.0.3",
   compatibility: "Windows 10 / Windows 11 (x64, self-contained .NET 8)",
   fileName: "SentinelAgentSetup.exe",
-  fileSize: "105.0 MB (110,089,017 bytes)",
-  sha256: "47abc4d328c4ce99e0dba8bab60317406edd3b9a5825f5ca5562eb5193f6e330",
+  fileSize: "105.0 MB (110,090,103 bytes)",
+  sha256: "cdf87ba0250a70e646c2dfd700d99d7078b685a457b210ee684b14dccc182392",
   downloadUrl:
     import.meta.env.VITE_AGENT_DOWNLOAD_URL ||
-    "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.2/SentinelAgentSetup.exe",
-  releasesPageUrl: "https://github.com/monish0001000/Sentinel_SOC/releases/tag/v1.0.2",
+    "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.3/SentinelAgentSetup.exe",
+  releasesPageUrl: "https://github.com/monish0001000/Sentinel_SOC/releases/tag/v1.0.3",
 };
 
 const ANDROID_RELEASE = {
   version: "1.0.3",
   compatibility: "Android 8.0+ (API 26–35, signed APK, no root required)",
   fileName: "SentinelAgent.apk",
-  fileSize: "Pending v1.0.3 release",
-  sha256: "Will be populated after v1.0.3 release checksum verification",
+  fileSize: "4.5 MB (4,672,490 bytes)",
+  sha256: "35b6715c4b4f2fe997e250bea3c8eddc8f5f42a1fd6f98464dc1bb55ec7ad6e8",
   downloadUrl:
     import.meta.env.VITE_ANDROID_AGENT_DOWNLOAD_URL ||
     "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.3/SentinelAgent.apk",
