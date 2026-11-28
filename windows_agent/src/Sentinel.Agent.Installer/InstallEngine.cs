@@ -79,7 +79,7 @@ public static class InstallEngine
             RunSc(new[]
             {
                 "create", ServiceName,
-                $"binPath= \"{targetServiceExe}\"",
+                "binPath=", targetServiceExe,
                 "start=", "auto",
                 "DisplayName=", ServiceDisplayName
             });
@@ -92,7 +92,7 @@ public static class InstallEngine
         else
         {
             log("Updating existing service binary path...");
-            RunSc(new[] { "config", ServiceName, $"binPath= \"{targetServiceExe}\"", "start=", "auto" });
+            RunSc(new[] { "config", ServiceName, "binPath=", targetServiceExe, "start=", "auto" });
         }
 
         log("Configuring automatic crash recovery (restart on failure)...");
@@ -200,26 +200,20 @@ public static class InstallEngine
 
     private static void StartService(Action<string> log)
     {
-        try
+        using var sc = new ServiceController(ServiceName);
+        if (sc.Status != ServiceControllerStatus.Running)
         {
-            using var sc = new ServiceController(ServiceName);
-            if (sc.Status != ServiceControllerStatus.Running)
-            {
-                sc.Start();
-                sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
-            }
+            sc.Start();
+            sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(25));
         }
-        catch (Exception ex)
-        {
-            log($"Service start warning: {ex.Message}");
-        }
+        log("SentinelSOCAgent service is Running.");
     }
 
     private static void RegisterAddRemovePrograms(string installDir, string uninstallerExe)
     {
         using var key = Registry.LocalMachine.CreateSubKey(UninstallRegKey);
         key.SetValue("DisplayName", "Sentinel SOC Windows Endpoint Agent");
-        key.SetValue("DisplayVersion", "1.0.0");
+        key.SetValue("DisplayVersion", "1.0.1");
         key.SetValue("Publisher", "Sentinel SOC");
         key.SetValue("InstallLocation", installDir);
         key.SetValue("UninstallString", $"\"{uninstallerExe}\" --uninstall");

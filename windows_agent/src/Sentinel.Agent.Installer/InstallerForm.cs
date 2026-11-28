@@ -29,7 +29,7 @@ public sealed class InstallerForm : Form
 
     public InstallerForm(bool startOnUninstall = false)
     {
-        Text = "Sentinel SOC Windows Endpoint Agent — Setup (v1.0.0)";
+        Text = "Sentinel SOC Windows Endpoint Agent — Setup (v1.0.1)";
         Width = 740;
         Height = 670;
         StartPosition = FormStartPosition.CenterScreen;
@@ -38,7 +38,7 @@ public sealed class InstallerForm : Form
 
         var header = new Label
         {
-            Text = "Sentinel SOC Windows Endpoint Agent (v1.0.0)",
+            Text = "Sentinel SOC Windows Endpoint Agent (v1.0.1)",
             Font = new Font("Segoe UI", 14, FontStyle.Bold),
             Location = new Point(20, 15),
             AutoSize = true
