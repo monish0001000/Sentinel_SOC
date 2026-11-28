@@ -185,12 +185,12 @@ jobs:
       - name: Prepare combined release files
         run: |
           mkdir -p final-release
-          cp release-assets/SentinelAgent-Windows-x64-${{ github.sha }}/SentinelAgentSetup.exe final-release/
-          cp release-assets/SentinelAgent-Windows-x64-${{ github.sha }}/SentinelAgent-Windows-x64.zip final-release/
-          cp release-assets/SentinelAgent-Android-${{ github.sha }}/SentinelAgent.apk final-release/
+          cp "$(find release-assets -name 'SentinelAgentSetup.exe' | head -n 1)" final-release/
+          cp "$(find release-assets -name 'SentinelAgent-Windows-x64.zip' | head -n 1)" final-release/
+          cp "$(find release-assets -name 'SentinelAgent.apk' | head -n 1)" final-release/
           cat \
-            release-assets/SentinelAgent-Windows-x64-${{ github.sha }}/SHA256SUMS-windows.txt \
-            release-assets/SentinelAgent-Android-${{ github.sha }}/SHA256SUMS-android.txt \
+            "$(find release-assets -name 'SHA256SUMS-windows.txt' | head -n 1)" \
+            "$(find release-assets -name 'SHA256SUMS-android.txt' | head -n 1)" \
             > final-release/SHA256SUMS.txt
           cat final-release/SHA256SUMS.txt
 
