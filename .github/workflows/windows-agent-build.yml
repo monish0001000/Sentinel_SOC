@@ -1,0 +1,72 @@
+name: Build Sentinel Windows Agent Installer
+
+on:
+  push:
+    branches:
+      - feature/firebase-web-edr-mvp
+    paths:
+      - windows_agent/**
+      - .github/workflows/windows-agent-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-agent:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: windows_agent
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore solution
+        run: dotnet restore SentinelAgent.sln
+
+      - name: Run unit tests
+        run: dotnet test tests/Sentinel.Agent.Tests/Sentinel.Agent.Tests.csproj -c Release --no-restore --verbosity normal
+
+      - name: Publish Windows Service EXE payload
+        run: |
+          dotnet publish src/Sentinel.Agent.Service/Sentinel.Agent.Service.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o src/Sentinel.Agent.Installer/Payload
+
+      - name: Publish Windows Installer EXE
+        run: |
+          dotnet publish src/Sentinel.Agent.Installer/Sentinel.Agent.Installer.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o dist
+
+      - name: Generate SHA-256 checksum
+        run: |
+          $hash = (Get-FileHash dist/SentinelAgentSetup.exe -Algorithm SHA256).Hash
+          "$hash  SentinelAgentSetup.exe" | Out-File -FilePath dist/SentinelAgentSetup.exe.sha256 -Encoding ascii
+          Get-Content dist/SentinelAgentSetup.exe.sha256
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-windows-agent-installer
+          path: |
+            windows_agent/dist/SentinelAgentSetup.exe
+            windows_agent/dist/SentinelAgentSetup.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
