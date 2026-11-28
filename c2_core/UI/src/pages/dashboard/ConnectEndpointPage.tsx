@@ -31,8 +31,8 @@ const AGENT_RELEASE = {
   version: "1.0.0",
   compatibility: "Windows 10 / Windows 11 (x64, self-contained .NET 8)",
   fileName: "SentinelAgentSetup.exe",
-  fileSize: "105.0 MB (110,090,282 bytes)",
-  sha256: "ce4176d033cc6c7eb16450e678922dcbf0ace1dde517e71942d2819bbbf26cba",
+  fileSize: "105.0 MB (110,079,871 bytes)",
+  sha256: "b330c0166e5f27d60dac2f08d929c2217de00fb03090ade1a51a6d105a50428e",
   downloadUrl:
     import.meta.env.VITE_AGENT_DOWNLOAD_URL ||
     "https://github.com/monish0001000/Sentinel_SOC/releases/download/v1.0.0/SentinelAgentSetup.exe",
