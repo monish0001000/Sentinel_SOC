@@ -1,0 +1,93 @@
+name: Build Sentinel Windows Agent
+
+on:
+  push:
+    branches:
+      - feature/firebase-web-edr-mvp
+    paths:
+      - "windows_agent/**"
+      - ".github/workflows/windows-agent-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sentinel-windows-agent-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore solution
+        shell: pwsh
+        run: dotnet restore windows_agent/SentinelAgent.sln
+
+      - name: Run Windows agent unit tests
+        shell: pwsh
+        run: dotnet test windows_agent/tests/Sentinel.Agent.Tests/Sentinel.Agent.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sentinel-agent-tests.trx" --results-directory artifacts/test-results
+
+      - name: Publish self-contained Windows service
+        shell: pwsh
+        run: |
+          $serviceOut = Join-Path $env:GITHUB_WORKSPACE "artifacts/service"
+          dotnet publish windows_agent/src/Sentinel.Agent.Service/Sentinel.Agent.Service.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $serviceOut -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          if (!(Test-Path (Join-Path $serviceOut "Sentinel.Agent.Service.exe"))) { throw "Self-contained service EXE was not produced." }
+
+      - name: Embed service payload into installer
+        shell: pwsh
+        run: |
+          $payload = Join-Path $env:GITHUB_WORKSPACE "windows_agent/src/Sentinel.Agent.Installer/Payload"
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          Copy-Item "artifacts/service/Sentinel.Agent.Service.exe" (Join-Path $payload "Sentinel.Agent.Service.exe") -Force
+
+      - name: Publish self-contained installer
+        shell: pwsh
+        run: |
+          $installerOut = Join-Path $env:GITHUB_WORKSPACE "artifacts/installer"
+          dotnet publish windows_agent/src/Sentinel.Agent.Installer/Sentinel.Agent.Installer.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $installerOut -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          if (!(Test-Path (Join-Path $installerOut "SentinelAgentSetup.exe"))) { throw "Installer EXE was not produced." }
+
+      - name: Assemble distributable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/package | Out-Null
+          Copy-Item "artifacts/installer/SentinelAgentSetup.exe" "artifacts/package/SentinelAgentSetup.exe"
+          Copy-Item "docs/WINDOWS_AGENT_INSTALLATION.md" "artifacts/package/INSTALLATION.md"
+          Copy-Item "docs/WINDOWS_AGENT_SECURITY.md" "artifacts/package/SECURITY.md"
+          $hash = (Get-FileHash "artifacts/package/SentinelAgentSetup.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "artifacts/package/SHA256SUMS.txt" -Value "$hash  SentinelAgentSetup.exe"
+          Compress-Archive -Path "artifacts/package/*" -DestinationPath "artifacts/SentinelAgent-Windows-x64.zip" -Force
+
+      - name: Upload installer and test evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: SentinelAgent-Windows-x64-${{ github.sha }}
+          path: |
+            artifacts/SentinelAgent-Windows-x64.zip
+            artifacts/package/SentinelAgentSetup.exe
+            artifacts/package/SHA256SUMS.txt
+            artifacts/test-results/*.trx
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SentinelAgent-Windows-build-diagnostics-${{ github.sha }}
+          path: |
+            artifacts/test-results/
+            windows_agent/**/bin/Release/
+          if-no-files-found: ignore
+          retention-days: 7
